@@ -6,6 +6,7 @@ extends Node
 ##  - ENet (IP directa / red local): para desarrollo y pruebas, no necesita Steam.
 ##  - Steam (lobbies de amigos): necesita el plugin GodotSteam con SteamMultiplayerPeer.
 ##    Se usa de forma dinámica, así el proyecto abre y funciona aunque el plugin no esté instalado.
+## En el navegador no hay UDP ni Steam: ahí se juega solo (sin conexión).
 
 signal session_started                  # se creó la partida (anfitrión) o se conectó (cliente)
 signal session_failed(reason: String)   # no se pudo crear o unirse
@@ -22,7 +23,7 @@ const STEAM_LOBBY_FRIENDS_ONLY := 1
 const STEAM_RESULT_OK := 1
 const STEAM_CHAT_ENTER_SUCCESS := 1
 
-enum Mode { NONE, ENET, STEAM }
+enum Mode { NONE, SOLO, ENET, STEAM }
 
 var mode: Mode = Mode.NONE
 var player_name := "Minero"
@@ -49,9 +50,22 @@ func is_active() -> bool:
 func has_steam_peer() -> bool:
 	return steam_ready and ClassDB.class_exists("SteamMultiplayerPeer")
 
+## ¿Se puede jugar en red? (En el navegador, no.)
+func can_play_online() -> bool:
+	return not OS.has_feature("web")
+
+## Partida de un solo jugador, sin conexión. El jugador local hace de anfitrión.
+func host_solo() -> void:
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+	mode = Mode.SOLO
+	session_started.emit()
+
 # ---------------------------------------------------------------- ENet
 
 func host_enet(port := DEFAULT_PORT) -> void:
+	if not can_play_online():
+		host_solo()
+		return
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, MAX_PLAYERS - 1)
 	if err != OK:

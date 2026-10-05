@@ -4,6 +4,7 @@ extends Node
 ## Opciones de línea de comandos (después de "--"), útiles para probar rápido:
 ##   --name=Ana        nombre del jugador
 ##   --host            crear partida al abrir
+##   --solo            jugar solo, sin conexión (es lo que usa la versión de navegador)
 ##   --join=1.2.3.4    unirse a esa IP al abrir
 ##   --autotest        correr la prueba automática (ver scripts/dev/autotest.gd)
 ##   --expect=1        (con --autotest) cuántos clientes espera el anfitrión
@@ -32,11 +33,14 @@ func _ready() -> void:
 func _parse_args() -> void:
 	var join_ip := ""
 	var host := false
+	var solo := false
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--name="):
 			Net.player_name = arg.get_slice("=", 1)
 		elif arg == "--host":
 			host = true
+		elif arg == "--solo":
+			solo = true
 		elif arg.begins_with("--join="):
 			join_ip = arg.get_slice("=", 1)
 		elif arg == "--autotest":
@@ -45,7 +49,9 @@ func _parse_args() -> void:
 			_expect_clients = int(arg.get_slice("=", 1))
 		elif arg.begins_with("--tour="):
 			_tour_dir = arg.get_slice("=", 1)
-	if host:
+	if solo:
+		Net.host_solo()
+	elif host:
 		Net.host_enet()
 	elif join_ip != "":
 		Net.join_enet(join_ip)

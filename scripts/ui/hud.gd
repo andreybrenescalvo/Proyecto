@@ -192,6 +192,8 @@ func _process(delta: float) -> void:
 	var p := world.local_player
 	if p:
 		_prompt.text = p.prompt
+		if not _pause.visible and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
+			_prompt.text = "Haz clic en el juego para controlar al minero"
 		for i in _tool_panels.size():
 			_tool_panels[i].add_theme_stylebox_override("panel", _style_on if i == p.current_tool else _style_off)
 		if p.current_tool == Player.Tool.DYNAMITE:
