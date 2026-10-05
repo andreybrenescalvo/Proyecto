@@ -1,0 +1,15 @@
+# Godot 4
+.godot/
+/android/
+*.translation
+
+# Exportaciones
+/build/
+/export/
+*.pck
+*.exe
+*.x86_64
+*.dmg
+
+# GodotSteam / Steam (se instalan aparte, ver README)
+steam_appid.txt
