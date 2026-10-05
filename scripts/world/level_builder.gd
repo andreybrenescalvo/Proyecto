@@ -148,6 +148,7 @@ static func _headframe(root: Node3D) -> void:
 	Mats.add_cylinder(root, 0.25, 0.3, Vector3(0, 8.6, 0), Color(0.6, 0.15, 0.1), Vector3(90, 0, 0), 8)
 	var sign_label := _label(root, "MINA LA ESPERANZA", Vector3(0, 6.6, 2.95), 96)
 	sign_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	sign_label.double_sided = false
 	Mats.add_box(root, Vector3(4.6, 0.8, 0.1), Vector3(0, 6.6, 2.88), Color(0.3, 0.2, 0.12))
 
 # ---------------------------------------------------------------- pozo y mina
@@ -227,6 +228,7 @@ static func _panel(root: Node3D, pos: Vector3, which: String) -> void:
 	var label := _label(root, text, base + Vector3(0, 0.42, 0) + facing * 0.02, 28)
 	label.rotation_degrees = Vector3(0, -135, 0)
 	label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	label.double_sided = false   # de espaldas no se ve (si no, se lee al revés)
 
 static func _button(root: Node3D, pos: Vector3, c: Color, id: String) -> void:
 	var body := StaticBody3D.new()
@@ -258,6 +260,7 @@ static func _sell_zone(root: Node3D) -> Area3D:
 	var sign_label := _label(root, "BÁSCULA\nel mineral que dejes aquí se vende", p + Vector3(1.69, 2.6, -1.75), 40)
 	sign_label.rotation_degrees = Vector3(0, -90, 0)
 	sign_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	sign_label.double_sided = false
 	var area := Area3D.new()
 	area.collision_layer = 0
 	area.collision_mask = Config.L_SMALL
