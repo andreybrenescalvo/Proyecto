@@ -148,3 +148,58 @@ Cooperativo: le deben una fortuna a un prestamista turbio y bajan a una mina ine
    - Un carrito que sube mineral.
 3. Probar si es divertido y luego iterar.
 4. Pendiente: elegir la carpeta del PC donde se guardará el proyecto de Godot.
+
+---
+
+## 8. Nueva dirección: Mudanceros Truchos (nombre provisorio)
+
+El prototipo de los mineros no convenció: es un juego de "trabajar para pagar" y los momentos graciosos
+tardan en llegar. El objetivo ahora no es que el juego dure años, sino que **pegue** con amigos, como
+*Schedule I*, *Lethal Company*, *R.E.P.O.* o *Peak*.
+
+### Qué tienen en común los juegos que pegan
+- **Se explican en una frase** y se entienden con 10 segundos de clip.
+- **Chat de voz por cercanía:** la mitad de la gracia la ponen los amigos.
+- **Fallar da risa, no rabia.** El fracaso es lo que se sube a TikTok.
+- **Barato (US$5–8) y partidas cortas** (10–20 minutos).
+- **Un amigo convence a los otros tres.**
+
+### La idea
+Una empresa de mudanzas que **de día hace mudanzas de verdad** y usa ese trabajo para ver las casas por dentro.
+**De noche vuelve a esas casas a robarlas mientras el dueño duerme**, y el juego escucha el micrófono de los jugadores.
+
+| | Mañana | Noche |
+|---|---|---|
+| Qué hacen | Mudanza legal | Robo en silencio |
+| Lo divertido | Caos físico, muebles volando | Susurrar, aguantar la risa, no despertar al dueño |
+| Para qué sirve | Plata limpia y **ver la casa por dentro** (dónde está la caja fuerte, si hay perro, cómo duerme el dueño) | Plata sucia (vale mucho más) |
+
+### Un día de juego
+1. **Mañana:** llega un pedido de mudanza. Se cargan los muebles y se llevan a la casa nueva. El cliente
+   revisa los daños y descuenta del pago. Mientras tanto, los jugadores miran qué hay de valor.
+2. **Noche:** vuelven a la casa del cliente. Si hablan fuerte, se ríen o rompen algo, el dueño se mueve
+   en la cama; al tercer aviso se despierta. Lo robado se carga en el mismo camión.
+3. **Base:** se vende lo robado y se compran mejoras (camión más silencioso, guantes, linternas).
+
+### Sospecha de la policía
+Una barra que sube cada vez que roban a un cliente propio. Si llega al máximo, los arrestan y pierden.
+Así hay que decidir en cada pedido: **¿este cliente lo robamos o solo le hacemos la mudanza?**
+
+### Objetivo final
+Juntar plata hasta que llegue **el pedido soñado: un millonario que se muda a su mansión** (bóveda,
+guardias, perros). Hacen la mudanza de día, la roban de noche y **se jubilan**: termina el juego.
+Una campaña completa debería durar unas 4–8 horas.
+
+- **Progreso de casas:** departamento chico → casa con escaleras → casa con perro → departamento con
+  vecinos de pared delgada → **la mansión**.
+- **Para volver a jugar:** modo difícil (sueño liviano), casas y clientes al azar, récords de
+  "botín sin despertar a nadie".
+
+### Primer prototipo (orden de trabajo)
+Empezar solo por **la noche**, que es el gancho de los clips:
+1. Una casa, un dueño dormido con IA simple: dormido → inquieto → despierto → persiguiendo.
+2. Detección del volumen del micrófono (y ruido de objetos que caen o chocan).
+3. Objetos con peso y valor que se cargan al camión.
+4. Probarlo con amigos. Si se ríen la primera noche, se agrega la mudanza de día.
+
+Del prototipo de los mineros se puede reaprovechar el multijugador, la física de objetos y el carrito.
