@@ -9,17 +9,12 @@ func _enter_tree() -> void:
 	_keys(&"move_right", [KEY_D, KEY_RIGHT])
 	_keys(&"jump", [KEY_SPACE])
 	_keys(&"sprint", [KEY_SHIFT])
+	_keys(&"crouch", [KEY_C, KEY_CTRL])
 	_keys(&"interact", [KEY_E])
-	_keys(&"tool_pickaxe", [KEY_1])
-	_keys(&"tool_dynamite", [KEY_2])
-	_keys(&"tool_support", [KEY_3])
-	_keys(&"charge_up", [KEY_EQUAL, KEY_KP_ADD])
-	_keys(&"charge_down", [KEY_MINUS, KEY_KP_SUBTRACT])
+	_keys(&"flashlight", [KEY_F])
 	_keys(&"pause", [KEY_ESCAPE])
 	_keys(&"debug", [KEY_F3])
 	_mouse(&"use", MOUSE_BUTTON_LEFT)
-	_mouse(&"charge_up", MOUSE_BUTTON_WHEEL_UP)
-	_mouse(&"charge_down", MOUSE_BUTTON_WHEEL_DOWN)
 
 func _ensure(action: StringName) -> void:
 	if not InputMap.has_action(action):

@@ -26,7 +26,7 @@ const STEAM_CHAT_ENTER_SUCCESS := 1
 enum Mode { NONE, SOLO, ENET, STEAM }
 
 var mode: Mode = Mode.NONE
-var player_name := "Minero"
+var player_name := "Mudancero"
 var steam: Object = null        # singleton "Steam" de GodotSteam, si está instalado
 var steam_ready := false
 var steam_id := 0
@@ -134,7 +134,7 @@ func _on_lobby_created(result: int, new_lobby_id: int) -> void:
 		return
 	lobby_id = new_lobby_id
 	steam.call("setLobbyJoinable", lobby_id, true)
-	steam.call("setLobbyData", lobby_id, "name", "Mina de %s" % player_name)
+	steam.call("setLobbyData", lobby_id, "name", "Camión de %s" % player_name)
 	var peer: MultiplayerPeer = ClassDB.instantiate("SteamMultiplayerPeer")
 	var err: int = peer.call("create_host", 0)
 	if err != OK:

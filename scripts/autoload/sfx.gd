@@ -1,21 +1,27 @@
 extends Node
 ## Sonidos generados por código (placeholder hasta tener audio de verdad).
-## Así el prototipo tiene explosiones, crujidos y golpes sin depender de archivos externos.
+## Así el prototipo tiene ronquidos, vidrios rotos y puertas que chillan sin depender de archivos externos.
 
 const RATE := 22050
 
 var streams := {}
 
 func _ready() -> void:
-	streams["boom"] = _make(1.6, _gen_boom)
-	streams["pick"] = _make(0.25, _gen_pick)
 	streams["thud"] = _make(0.3, _gen_thud)
+	streams["step"] = _make(0.12, _gen_step)
 	streams["creak"] = _make(1.1, _gen_creak)
-	streams["rumble"] = _make(2.6, _gen_rumble)
+	streams["door"] = _make(0.7, _gen_door)
+	streams["squeak"] = _make(0.45, _gen_squeak)
+	streams["crash"] = _make(1.0, _gen_crash)
+	streams["clang"] = _make(0.8, _gen_clang)
+	streams["scrape"] = _make(0.35, _gen_scrape)
+	streams["duck"] = _make(0.25, _gen_duck)
+	streams["snore"] = _make(3.2, _gen_snore, true)
+	streams["mumble"] = _make(0.9, _gen_mumble)
+	streams["shout"] = _make(1.0, _gen_shout)
+	streams["siren"] = _make(2.0, _gen_siren, true)
+	streams["honk"] = _make(0.6, _gen_honk)
 	streams["coin"] = _make(0.35, _gen_coin)
-	streams["bell"] = _make(1.4, _gen_bell)
-	streams["fuse"] = _make(1.0, _gen_fuse, true)
-	streams["motor"] = _make(1.0, _gen_motor, true)
 	streams["click"] = _make(0.06, _gen_click)
 
 ## Reproduce un sonido en una posición del mundo.
@@ -85,22 +91,13 @@ static func _lowpass(state: Dictionary, key: String, v: float, k: float) -> floa
 	state[key] = y
 	return y
 
-func _gen_boom(t: float, _dur: float, st: Dictionary) -> float:
-	var noise := randf_range(-1.0, 1.0)
-	var low := _lowpass(st, "lp", noise, 0.06)
-	low = _lowpass(st, "lp2", low, 0.3)
-	var env := exp(-t * 3.2) * minf(t * 200.0, 1.0)
-	var thump := sin(TAU * (55.0 - 25.0 * t) * t) * exp(-t * 5.0)
-	return (low * 3.2 + thump * 0.8) * env
-
-func _gen_pick(t: float, _dur: float, _st: Dictionary) -> float:
-	var ring := sin(TAU * 1850.0 * t) * 0.5 + sin(TAU * 2790.0 * t) * 0.3 + sin(TAU * 4100.0 * t) * 0.2
-	var click := randf_range(-1.0, 1.0) * exp(-t * 90.0)
-	return ring * exp(-t * 28.0) * 0.7 + click * 0.6
-
 func _gen_thud(t: float, _dur: float, st: Dictionary) -> float:
 	var low := _lowpass(st, "lp", randf_range(-1.0, 1.0), 0.08)
 	return (low * 2.5 + sin(TAU * 90.0 * t) * 0.5) * exp(-t * 18.0)
+
+func _gen_step(t: float, _dur: float, st: Dictionary) -> float:
+	var low := _lowpass(st, "lp", randf_range(-1.0, 1.0), 0.15)
+	return low * 1.6 * exp(-t * 40.0)
 
 func _gen_creak(t: float, dur: float, _st: Dictionary) -> float:
 	var f := 70.0 + 35.0 * sin(TAU * 2.3 * t) + 20.0 * sin(TAU * 7.1 * t)
@@ -108,33 +105,92 @@ func _gen_creak(t: float, dur: float, _st: Dictionary) -> float:
 	var env := sin(PI * t / dur) * (0.6 + 0.4 * sin(TAU * 11.0 * t))
 	return saw * env * 0.35
 
-func _gen_rumble(t: float, dur: float, st: Dictionary) -> float:
-	var low := _lowpass(st, "lp", randf_range(-1.0, 1.0), 0.03)
-	low = _lowpass(st, "lp2", low, 0.2)
-	var env := minf(t * 4.0, 1.0) * clampf((dur - t) / 1.2, 0.0, 1.0)
-	var crack := 0.0
-	if randf() < 0.002:
-		crack = randf_range(-1.0, 1.0)
-	return low * 5.0 * env + crack
+## Bisagra oxidada: un chirrido que sube de tono.
+func _gen_door(t: float, dur: float, st: Dictionary) -> float:
+	var f := 380.0 + 260.0 * (t / dur) + 40.0 * sin(TAU * 9.0 * t)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	var saw := fmod(float(st["ph"]), 1.0) * 2.0 - 1.0
+	var grit := 0.6 + 0.4 * sin(TAU * 31.0 * t)
+	return saw * grit * sin(PI * t / dur) * 0.3
+
+func _gen_squeak(t: float, dur: float, st: Dictionary) -> float:
+	var f := 220.0 + 90.0 * sin(PI * t / dur)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	var saw := fmod(float(st["ph"]), 1.0) * 2.0 - 1.0
+	return saw * sin(PI * t / dur) * 0.4
+
+## Vidrio o loza: golpe seco y muchos "tintines" agudos.
+func _gen_crash(t: float, _dur: float, st: Dictionary) -> float:
+	var n := randf_range(-1.0, 1.0)
+	var high := n - _lowpass(st, "lp", n, 0.3)
+	var body := high * exp(-t * 7.0) * 1.2
+	var tink := 0.0
+	if randf() < 0.004 * exp(-t * 3.0):
+		st["tf"] = randf_range(2500.0, 6000.0)
+		st["tt"] = t
+	if st.has("tf"):
+		var dt := t - float(st["tt"])
+		tink = sin(TAU * float(st["tf"]) * dt) * exp(-dt * 30.0) * 0.5
+	return body + tink
+
+func _gen_clang(t: float, _dur: float, _st: Dictionary) -> float:
+	var v := sin(TAU * 410.0 * t) * 0.5 + sin(TAU * 1130.0 * t) * 0.3 + sin(TAU * 2350.0 * t) * 0.2
+	return v * exp(-t * 6.0) * 0.8 + randf_range(-1.0, 1.0) * exp(-t * 60.0) * 0.4
+
+func _gen_scrape(t: float, dur: float, st: Dictionary) -> float:
+	var n := randf_range(-1.0, 1.0)
+	var band := _lowpass(st, "lp", n, 0.25) - _lowpass(st, "lp2", n, 0.04)
+	var judder := 0.5 + 0.5 * sin(TAU * 38.0 * t)
+	return band * 3.0 * judder * sin(PI * t / dur)
+
+func _gen_duck(t: float, dur: float, st: Dictionary) -> float:
+	var f := 900.0 + 500.0 * sin(PI * t / dur)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	return signf(sin(TAU * float(st["ph"]))) * sin(PI * t / dur) * 0.25
+
+## Ronquido: inhalación áspera y exhalación con silbido, en bucle.
+func _gen_snore(t: float, _dur: float, st: Dictionary) -> float:
+	var n := randf_range(-1.0, 1.0)
+	var low := _lowpass(st, "lp", n, 0.05)
+	if t < 1.4:
+		var env := sin(PI * t / 1.4)
+		var rattle := 0.5 + 0.5 * sin(TAU * 32.0 * t)
+		return low * 4.0 * env * rattle
+	if t < 2.6:
+		var env2 := sin(PI * (t - 1.4) / 1.2)
+		var air := (n - _lowpass(st, "lp2", n, 0.5)) * 0.15
+		return (low * 1.5 + air) * env2
+	return 0.0
+
+## Murmullo del dueño cuando se da vuelta en la cama.
+func _gen_mumble(t: float, dur: float, st: Dictionary) -> float:
+	var f := 120.0 + 25.0 * sin(TAU * 3.0 * t)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	var saw := fmod(float(st["ph"]), 1.0) * 2.0 - 1.0
+	var syll := maxf(sin(TAU * 4.5 * t), 0.0)
+	return _lowpass(st, "lp", saw, 0.12) * syll * sin(PI * t / dur) * 1.4
+
+## "¿¡QUIÉN ANDA AHÍ!?": tres sílabas con la voz quebrada.
+func _gen_shout(t: float, dur: float, st: Dictionary) -> float:
+	var f := 210.0 + 70.0 * sin(PI * t / dur) + 15.0 * sin(TAU * 7.0 * t)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	var saw := fmod(float(st["ph"]), 1.0) * 2.0 - 1.0
+	var syll := clampf(sin(TAU * 3.2 * t) * 2.0, 0.0, 1.0)
+	var formant := _lowpass(st, "lp", saw, 0.35)
+	return formant * syll * minf(t * 20.0, 1.0) * clampf((dur - t) * 6.0, 0.0, 1.0) * 1.1
+
+func _gen_siren(t: float, _dur: float, st: Dictionary) -> float:
+	var f := 700.0 + 300.0 * sin(TAU * 0.5 * t)
+	st["ph"] = float(st.get("ph", 0.0)) + f / RATE
+	return sin(TAU * float(st["ph"])) * 0.35
+
+func _gen_honk(t: float, dur: float, _st: Dictionary) -> float:
+	var v := signf(sin(TAU * 330.0 * t)) * 0.3 + signf(sin(TAU * 415.0 * t)) * 0.3
+	return v * minf(t * 40.0, 1.0) * clampf((dur - t) * 20.0, 0.0, 1.0) * 0.6
 
 func _gen_coin(t: float, _dur: float, _st: Dictionary) -> float:
 	var f := 1320.0 if t < 0.08 else 1760.0
 	return sin(TAU * f * t) * exp(-t * 9.0) * 0.5
-
-func _gen_bell(t: float, _dur: float, _st: Dictionary) -> float:
-	var v := sin(TAU * 880.0 * t) * 0.5 + sin(TAU * 1320.0 * t) * 0.25 + sin(TAU * 2210.0 * t) * 0.12
-	return v * exp(-t * 2.8) * 0.8
-
-func _gen_fuse(_t: float, _dur: float, st: Dictionary) -> float:
-	var n := randf_range(-1.0, 1.0)
-	var low := _lowpass(st, "lp", n, 0.5)
-	var crackle := randf_range(-1.0, 1.0) if randf() < 0.01 else 0.0
-	return (n - low) * 0.35 + crackle * 0.5
-
-func _gen_motor(t: float, _dur: float, st: Dictionary) -> float:
-	var saw := fmod(60.0 * t, 1.0) * 2.0 - 1.0
-	var hum := _lowpass(st, "lp", saw, 0.2)
-	return hum * 0.5 + randf_range(-0.05, 0.05)
 
 func _gen_click(t: float, _dur: float, _st: Dictionary) -> float:
 	return randf_range(-1.0, 1.0) * exp(-t * 120.0) * 0.6

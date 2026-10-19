@@ -1,6 +1,6 @@
 class_name Menu
 extends CanvasLayer
-## Menú principal: nombre, crear partida, unirse por IP o por Steam.
+## Menú principal: nombre, crear partida, unirse por IP o por Steam, y prueba del micrófono.
 
 var _name_edit: LineEdit
 var _ip_edit: LineEdit
@@ -11,7 +11,7 @@ var _buttons: Array[Button] = []
 func _ready() -> void:
 	layer = 10
 	var bg := ColorRect.new()
-	bg.color = Color(0.12, 0.09, 0.07)
+	bg.color = Color(0.05, 0.06, 0.1)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 	var center := CenterContainer.new()
@@ -22,10 +22,10 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 12)
 	center.add_child(box)
 
-	var title := Hud._label("MINEROS ENDEUDADOS", 52, Color(1.0, 0.78, 0.3))
+	var title := Hud._label("MUDANCEROS TRUCHOS", 52, Color(0.95, 0.5, 0.15))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
-	var subtitle := Hud._label("Le deben una fortuna al prestamista. La mina es inestable.\nLa dinamita es barata. ¿Qué podría salir mal?", 18, Color(0.85, 0.8, 0.72))
+	var subtitle := Hud._label("De día hacen mudanzas. De noche... también, pero sin permiso.\nEl juego escucha tu micrófono: no despierten a Don Ramón.", 18, Color(0.8, 0.82, 0.9))
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(subtitle)
 	box.add_child(_spacer(10))
@@ -79,14 +79,60 @@ func _ready() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_status)
 
+	box.add_child(mic_controls())
+
 	var quit := Hud._button("Salir")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	quit.visible = not OS.has_feature("web")
 	box.add_child(quit)
 
-	var help := Hud._label("WASD moverse · Shift correr · Espacio saltar · E agarrar / botones\nClic usar herramienta · 1 Pico · 2 Dinamita · 3 Puntal · Rueda: cantidad de cartuchos", 14, Color(0.65, 0.62, 0.58))
+	var help := Hud._label("WASD moverse · Shift correr · C agacharse · E agarrar / puertas · Clic lanzar · F linterna\nPara hablar entre ustedes usen Discord (o lo que usen): el juego solo mide qué tan fuerte hablan.", 14, Color(0.6, 0.62, 0.7))
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(help)
+
+## Controles del micrófono (se usan en el menú y en la pausa).
+static func mic_controls() -> Control:
+	return MicPanel.new()
+
+class MicPanel extends VBoxContainer:
+	var _bar: ProgressBar
+	var _word: Label
+
+	func _ready() -> void:
+		add_theme_constant_override("separation", 4)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		add_child(row)
+		var toggle := CheckBox.new()
+		toggle.text = "Usar micrófono"
+		toggle.button_pressed = Voice.enabled
+		toggle.toggled.connect(func(on: bool) -> void: Voice.enabled = on)
+		row.add_child(toggle)
+		_word = Hud._label("", 15, Color(0.8, 0.85, 1.0))
+		_word.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_word.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(_word)
+		_bar = Hud._bar(Color(0.4, 0.9, 0.4), 0, 12)
+		add_child(_bar)
+		var sens := HBoxContainer.new()
+		add_child(sens)
+		sens.add_child(Hud._label("Sensibilidad", 15, Color(0.8, 0.8, 0.8)))
+		var slider := HSlider.new()
+		slider.min_value = 0.4
+		slider.max_value = 2.5
+		slider.step = 0.05
+		slider.value = Voice.sensitivity
+		slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		slider.value_changed.connect(func(v: float) -> void: Voice.sensitivity = v)
+		sens.add_child(slider)
+
+	func _process(_delta: float) -> void:
+		if not Voice.available:
+			_word.text = "no se detectó micrófono"
+			_bar.value = 0.0
+			return
+		_bar.value = Voice.level
+		_word.text = "Prueba: " + Voice.level_word(Voice.level)
 
 static func _spacer(h: float) -> Control:
 	var c := Control.new()

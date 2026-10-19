@@ -197,9 +197,13 @@ Una campaña completa debería durar unas 4–8 horas.
 
 ### Primer prototipo (orden de trabajo)
 Empezar solo por **la noche**, que es el gancho de los clips:
-1. Una casa, un dueño dormido con IA simple: dormido → inquieto → despierto → persiguiendo.
-2. Detección del volumen del micrófono (y ruido de objetos que caen o chocan).
-3. Objetos con peso y valor que se cargan al camión.
-4. Probarlo con amigos. Si se ríen la primera noche, se agrega la mudanza de día.
+1. ✅ Una casa, un dueño dormido con IA simple: dormido → inquieto → despierto → persiguiendo.
+2. ✅ Detección del volumen del micrófono (y ruido de objetos que caen o chocan).
+3. ✅ Objetos con peso y valor que se cargan al camión.
+4. ⏳ Probarlo con amigos. Si se ríen la primera noche, se agrega la mudanza de día.
 
-Del prototipo de los mineros se puede reaprovechar el multijugador, la física de objetos y el carrito.
+Del prototipo de los mineros se reaprovechó el multijugador, la física de objetos y la interfaz.
+El prototipo de la noche ya está en el repositorio (ver el README): la casa de Don Ramón, el
+micrófono, las puertas que chillan, lo pesado entre dos, la policía y los "premios" de cada noche.
+La voz entre jugadores todavía va por Discord; la voz por proximidad dentro del juego es el
+siguiente paso grande.

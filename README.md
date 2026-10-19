@@ -1,37 +1,53 @@
-# Mineros Endeudados (prototipo)
+# Mudanceros Truchos (prototipo)
 
-Cooperativo de 2 a 4 jugadores en primera persona. Le deben una fortuna a un prestamista turbio
-y bajan a una mina inestable para pagarle. La dinamita rinde más, pero puede tirarles el techo encima.
+Cooperativo de 1 a 4 jugadores en primera persona. Son una empresa de mudanzas que de noche
+"muda" casas sin permiso: hay que cargar el camión con lo que valga la pena **sin despertar a
+Don Ramón**, el dueño, que duerme en su pieza. **El juego escucha el micrófono**: si alguien
+habla fuerte o se ríe, Don Ramón se mueve en la cama. Si se despierta, sale a buscar con la
+linterna.
 
-Es el **primer prototipo** de la idea 3 del [plan del juego](docs/plan-juego-steam.md): sirve para
-comprobar si el bucle es divertido antes de invertir en arte, sonido y contenido.
+Es el **primer prototipo** de la idea del [plan del juego](docs/plan-juego-steam.md) (sección 8):
+solo la parte de la noche, para comprobar si el robo en silencio es divertido antes de agregar
+la mudanza de día, más casas, arte y sonido de verdad.
 
-| Superficie | Mina |
+| Afuera | Adentro |
 |---|---|
-| ![Superficie con la torre del pozo, la báscula y el campamento](docs/capturas/superficie.png) | ![Galería de la mina con rieles y lámparas](docs/capturas/mina.png) |
-| **Dinamita encendida** | **Después de un derrumbe** |
-| ![Dinamita con la mecha encendida al fondo del túnel](docs/capturas/dinamita.png) | ![Túnel tapado por escombros](docs/capturas/derrumbe.png) |
+| ![La casa de noche con el camión de Mudanzas Truchas en la entrada](docs/capturas/casa.png) | ![La cocina iluminada con la linterna](docs/capturas/cocina.png) |
+| **Don Ramón durmiendo** | **Cuando te atrapa** |
+| ![Don Ramón dormido en su cama, con los "z Z z" encima](docs/capturas/dormitorio.png) | ![Aviso de que Don Ramón echó a un jugador y la cuenta regresiva de la policía](docs/capturas/policia.png) |
 
 ## Qué tiene el prototipo
 
-- **Multijugador cooperativo sin servidores:** un jugador es el anfitrión y los demás se conectan a él
+- **La casa de Don Ramón:** sala, cocina, pasillo, dormitorio, estudio y baño, con 5 puertas
+  (la del dormitorio chilla) y tablas del piso que crujen al pisarlas.
+- **24 objetos con física:** televisor, consola, joyero (en el velador, al lado de su cabeza),
+  notebook, caja fuerte, sillón, cuadros colgados... y cosas sin valor que solo hacen ruido
+  (sillas, platos, una olla, un patito de hule). Lo frágil se rompe si se cae o se lanza.
+- **Lo pesado se carga entre dos.** Una sola persona puede arrastrar el sillón o la caja fuerte,
+  pero va lento y hace ruido.
+- **El micrófono:** cada jugador mide su propio volumen. Lo que oye Don Ramón depende de lo
+  fuerte que sea, la distancia y las paredes o puertas cerradas que haya en el medio.
+  También hacen ruido los pasos (correr más, agacharse casi nada), las puertas, los golpes
+  de los objetos y las tablas que crujen.
+- **Don Ramón** tiene un nivel de alerta de 0 a 100: ronca → se mueve en la cama → está por
+  despertarse → se levanta, prende la luz y va a ver qué fue el ruido. Si ve a alguien
+  (le cuesta más si está agachado o detrás de un mueble; le es más fácil con la linterna
+  prendida) lo persigue. Al que atrapa **lo tira a la calle y llama a la policía**: llega en
+  60 segundos. Si no encuentra a nadie, vuelve a la cama... con el sueño más liviano.
+- **El camión:** lo que está adentro de la caja de carga cuenta como botín. Para terminar la
+  noche, alguien mantiene E en la puerta del conductor. Los que se quedan adentro de la casa
+  cuentan como detenidos (multa de $300 cada uno).
+- **Resultados de la noche:** botín contra la cuota, de 0 a 3 estrellas y "premios":
+  *El más ruidoso*, *Despertador humano* (quién lo despertó), *Manos de mantequilla*,
+  *Imán de abuelos* y *Empleado del mes*. Después se puede jugar otra noche: la cuota sube
+  y Don Ramón duerme más liviano.
+- **Multijugador sin servidores:** un jugador es el anfitrión y los demás se conectan a él
   (por IP/red local, o por Steam con el plugin GodotSteam).
-- **Mina generada** a partir de una semilla, con vetas de carbón, hierro, plata y oro.
-  Cuanto más lejos del pozo, más ricas (en el juego completo esto será la profundidad).
-- **Pico** (lento y seguro) y **dinamita de 1 a 4 cartuchos**: más cartuchos rompen más roca
-  y sueltan más mineral, pero tienen más riesgo de derrumbe.
-- **Estabilidad que se nota sin números:** en las zonas castigadas cae polvo del techo, se escuchan
-  crujidos y tiembla la cámara. Antes de un derrumbe hay 1,6 segundos de aviso.
-- **Derrumbes:** tapan los túneles con escombros (se pueden picar) y entierran el mineral que haya debajo.
-- **Puntales** ($15): cada uno cerca de la explosión reduce el riesgo a la mitad.
-- **Montacargas** manejado entre todos: el panel de arriba es rápido, pero si se suelta el botón a toda
-  velocidad la carga sale volando y el carrito "se descarrila". El de abajo es lento pero seguro.
-  Los dos tienen una campana para avisar.
-- **Carrito físico** y objetos que se agarran, empujan y lanzan (con la física ridícula incluida).
-- **Báscula:** todo el mineral que se deje encima se vende, también el que está dentro del carrito.
-- **El prestamista** cobra una cuota al final de cada día (5 minutos). Si no alcanza, aplica un recargo
-  y una advertencia; a la tercera se queda con la mina y la partida vuelve a empezar.
-- **Sonidos generados por código** (provisorios) y gráficos de cajas de colores, estilo low-poly.
+- **Sonidos generados por código** (provisorios: ronquido, vidrios rotos, chirrido de puertas,
+  sirena) y gráficos de cajas de colores, estilo low-poly.
+
+**La voz entre los jugadores todavía no viaja por el juego:** por ahora se habla por Discord
+(o lo que usen). El juego solo mide el volumen de cada micrófono.
 
 ## Cómo abrirlo
 
@@ -40,6 +56,11 @@ comprobar si el bucle es divertido antes de invertir en arte, sonido y contenido
 3. Pulsar **F5** para jugar.
 
 Usa el renderizador "Compatibilidad" (OpenGL), así funciona también en computadoras modestas.
+
+**Micrófono:** el menú principal (y la pausa) tiene un medidor para probarlo, una casilla para
+apagarlo y la sensibilidad. Lo ideal es que hablar normal marque "hablando" y susurrar marque
+"susurro". Si el medidor no se mueve, revisar que el sistema le dé permiso a Godot de usar el
+micrófono.
 
 ## Jugar con amigos
 
@@ -69,67 +90,77 @@ Usa el renderizador "Compatibilidad" (OpenGL), así funciona también en computa
 | Tecla | Acción |
 |---|---|
 | WASD | Moverse |
-| Shift | Correr |
+| Shift | Correr (hace más ruido) |
+| C o Ctrl | Agacharse (casi no hace ruido y cuesta más verte) |
 | Espacio | Saltar |
 | Mouse | Mirar |
-| Clic izquierdo | Usar herramienta / lanzar lo que se tiene agarrado |
-| E | Agarrar, empujar el carrito, soltar; mantener sobre los botones del montacargas |
-| 1 / 2 / 3 | Pico / Dinamita / Puntal |
-| Rueda del mouse (o + / -) | Cantidad de cartuchos de dinamita |
-| Esc | Pausa (invitar amigos, salir) |
-| F3 | Datos de depuración (estabilidad y riesgo en números, para ajustar el balance) |
+| E | Agarrar / soltar, abrir y cerrar puertas; mantener en la cabina del camión para irse |
+| Clic izquierdo | Lanzar lo que se tiene en la mano (¡ruido!) |
+| F | Prender / apagar la linterna |
+| Esc | Pausa (micrófono, invitar amigos, salir) |
+| F3 | Datos de depuración: alerta de Don Ramón en números y los últimos ruidos que oyó |
 
 ## Cómo se juega
 
-1. El carrito empieza sobre el montacargas. Alguien se queda arriba manejando (panel rápido)
-   y los demás bajan.
-2. Abajo se pica o se vuela roca. El mineral cae en trozos que hay que juntar en el carrito.
-3. Se sube el carrito (¡sin frenar de golpe!) y se empuja hasta la **báscula**, junto al prestamista.
-4. Con la plata se compra más dinamita y puntales, y se paga la cuota del día.
+1. Empiezan al lado del camión, estacionado en la entrada. La cuota de la primera noche es de $1.800.
+2. Entran a la casa (la puerta de calle y la de la cocina están cerradas: abrirlas hace un poco de ruido).
+3. Buscan lo que vale y lo llevan a la caja del camión. Lo chico se lleva en la mano; lo pesado, entre dos.
+4. Arriba de la pantalla se ve cómo duerme Don Ramón. Si la barra se vacía, se despierta.
+5. Cuando quieran irse (o si viene la policía), todos al camión y alguien mantiene E en la puerta del conductor.
 
 ## Estructura del proyecto
 
 ```
-project.godot              Configuración (autoloads, física Jolt, renderizador)
+project.godot              Configuración (autoloads, micrófono, física Jolt, renderizador)
 scenes/main.tscn           Escena principal (solo carga scripts/main.gd)
 scripts/
   main.gd                  Menú ↔ partida; opciones de línea de comandos
   autoload/
     net.gd                 Conexión: ENet (IP) y Steam (GodotSteam, cargado de forma dinámica)
+    voice.gd               Micrófono: mide el volumen de cada jugador
     controls.gd            Teclas y botones del mouse
     sfx.gd                 Sonidos generados por código
   core/
-    config.gd              TODOS los números de balance (precios, riesgos, tiempos)
+    config.gd              TODOS los números de balance (ruido, oído, vista, objetos, tiempos)
     mats.gd                Materiales y mallas compartidas
     fx.gd                  Partículas, destellos y textos flotantes
   world/
-    world.gd               La partida: reglas, red (RPC) y simulación del anfitrión
-    mine_grid.gd           La mina (grilla de columnas generada por semilla)
-    lift.gd                El montacargas
-    level_builder.gd       Superficie, pozo, báscula, prestamista, campamento
-  entities/entity.gd       Objetos físicos: mineral, carrito, dinamita, puntales
-  player/player.gd         Minero en primera persona
-  ui/hud.gd, ui/menu.gd    Interfaz
+    world.gd               La partida: reglas, ruido, camión, policía, red (RPC)
+    house_builder.gd       La casa, el patio, la calle y el camión; puntos por donde camina el dueño
+    house_owner.gd         Don Ramón: oído, vista y máquina de estados
+    door.gd                Puertas con bisagra
+  entities/entity.gd       Objetos físicos (lo que se roba y lo que solo hace ruido)
+  player/player.gd         El mudancero en primera persona
+  ui/hud.gd, ui/menu.gd    Interfaz (y resultados de la noche)
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
 docs/                      Plan del juego y capturas
 ```
 
-**Cómo funciona la red:** el anfitrión simula todo (física, mina, dinamita, dinero). Cada jugador mueve
-su propio minero y le manda pedidos al anfitrión ("picar esta celda", "poner dinamita acá"). La mina
-se genera igual en todas las computadoras a partir de la semilla, y solo viajan los cambios. Quien entra
-a una partida empezada recibe una "foto" completa del estado.
+**Cómo funciona la red:** el anfitrión simula todo (física, Don Ramón, puertas, ruido, botín). Cada
+jugador mueve su propio mudancero y le manda al anfitrión su posición, si está agachado o con la
+linterna, su nivel de voz y sus pedidos ("agarrar esto", "abrir esta puerta"). Quien entra a una
+partida empezada recibe una "foto" completa del estado.
 
 ## Ajustar el balance
 
-Todo está en `scripts/core/config.gd`: precio de cada mineral, costo de la dinamita y los puntales,
-radio de las explosiones, probabilidad de derrumbe por cartucho, velocidad del montacargas,
-duración del día, deuda inicial y cuotas. F3 muestra los números en el juego.
+Todo está en `scripts/core/config.gd`. Lo más importante para probar con amigos:
+
+- `HEARING_DISTANCE`, `WALL_FACTOR` y `HEARING_FLOOR`: qué tan bien oye Don Ramón.
+- `ALERT_DECAY`: qué tan rápido se le pasa el susto cuando hay silencio.
+- `NOISE_*`: cuánto ruido hace cada cosa (pasos, tablas, arrastrar, romper).
+- `OWNER_*`: velocidad, distancia a la que ve y cuánto tarda en rendirse.
+- `ITEMS`: valor, peso y fragilidad de cada objeto.
+
+F3 muestra en el juego la alerta en números y los últimos ruidos que oyó, con cuánto subió cada uno.
 
 ## Pruebas automáticas
 
-Recorren las mecánicas principales con un anfitrión y un cliente reales conectados por red, y comprueban
-que los dos vean la misma mina y los mismos objetos:
+Recorren las mecánicas principales con un anfitrión y un cliente reales conectados por red:
+que la voz suba la alerta (y que un susurro lejos no), la puerta que chilla, cargar el joyero en
+el camión, romper el jarrón, el sillón entre dos (y arrastrado por uno), que Don Ramón se
+despierte, persiga y eche a alguien, irse y empezar otra noche. Al final comprueban que el
+cliente vea lo mismo que el anfitrión.
 
 ```sh
 godot --headless --path . -- --host --autotest --expect=1 &
@@ -141,10 +172,12 @@ capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida`.
 
 ## Próximos pasos
 
-- **Probarlo con otras personas**: es lo único que dice si es divertido.
-- Rescate de compañeros atrapados por un derrumbe (excavar antes de que se acabe el aire).
-- Profundidad real: más niveles (hierro → plata → oro → gemas → algo raro) y peligros (gas, agua).
-- Mejoras entre sesiones (mejor dinamita, lámparas, montacargas más rápido) y **guardado de la partida**.
-- Precio del mineral que cambia cada día y el "doble o nada" del prestamista.
+- **Probarlo con amigos** y ajustar el oído de Don Ramón: es lo único que dice si es divertido.
+- **Voz por proximidad dentro del juego** (con la API de voz de Steam): escuchar a los demás más
+  fuerte cuanto más cerca estén. Es la mitad de la gracia en los clips.
+- La **mudanza de día** (ver el plan): ver la casa por dentro antes de robarla.
+- Más casas (la abuela con gatos, el policía jubilado, la mansión) y la barra de sospecha.
 - Arte de verdad (Kenney, Quaternius), sonidos y música.
 - Abrir la página "Próximamente" en Steam lo antes posible para juntar wishlists.
+
+El prototipo anterior (*Mineros Endeudados*) sigue en el historial de git, en el commit `6a41459`.

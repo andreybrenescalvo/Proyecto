@@ -1,195 +1,248 @@
 class_name Entity
 extends RigidBody3D
-## Objeto físico compartido: trozos de mineral, carrito, dinamita y puntales.
+## Objeto físico de la casa: lo que se roba (televisor, joyero, caja fuerte...) y lo que solo
+## hace ruido (sillas, platos, ollas). Los datos de cada uno están en Config.ITEMS.
+##
 ## El anfitrión simula la física de verdad; los demás solo copian la posición que llega por red
 ## (en los clientes el cuerpo está "congelado" y se mueve suavemente hacia esa posición).
 
+## Choque fuerte (solo en el anfitrión): `speed` es el cambio de velocidad en ese paso de física.
+signal impact(e: Entity, speed: float)
+
+const HOLD_TIMEOUT := 0.6       # si un jugador deja de mandar su punto de agarre, lo suelta
+const DRAG_SPEED := 1.4         # pesado con una sola persona: se arrastra
+const LIFT_SPEED := 3.2         # pesado entre dos o más: se levanta
+
 var entity_id := 0
-var kind := ""           # "ore", "cart", "dynamite", "support"
-var info := {}           # datos extra: {"ore": "iron"}, {"charge": 3, "stuck": true}
+var kind := "item"
+var info := {}           # {"item": "tv", "hung": true}
+var item_id := ""
+var data := {}           # la ficha de Config.ITEMS
 var server_side := false
+var main_color := Color.GRAY
+var carriers := 0        # cuántos lo tienen agarrado (lo saben todos: frena al que lo lleva)
 
 # --- solo en el anfitrión ---
-var held_by := 0         # peer que lo está sosteniendo (0 = nadie)
-var hold_target := Vector3.ZERO
-var hold_stamp := 0.0
-var fuse := 0.0          # dinamita: segundos que le quedan a la mecha
+var holders := {}        # peer -> [punto al que lo lleva, momento del último aviso]
+var last_holder := 0     # quién lo tocó por última vez (para las estadísticas)
+var quiet_until := 0.0   # al aparecer se acomoda: esos golpes no hacen ruido
+var dragging := false    # se está arrastrando (lo usa la partida para el ruido)
 var last_sent_pos := Vector3(INF, INF, INF)
 var last_sent_rot := Quaternion.IDENTITY
 var resend_timer := 0.0
+var _prev_vel := Vector3.ZERO
+var _skip_impact := 0
 
 # --- en los clientes ---
 var _net_pos := Vector3.ZERO
 var _net_rot := Quaternion.IDENTITY
-
-var _spark: CPUParticles3D
-var _spark_light: OmniLight3D
-var _fuse_sound: AudioStreamPlayer3D
 
 static func create(id: int, new_kind: String, new_info: Dictionary, is_server: bool) -> Entity:
 	var e := Entity.new()
 	e.entity_id = id
 	e.kind = new_kind
 	e.info = new_info
+	e.item_id = String(new_info.get("item", "pot"))
+	e.data = Config.item(e.item_id)
 	e.server_side = is_server
 	e.name = "E%d" % id
 	e._build()
 	return e
 
 func is_grabbable() -> bool:
-	return kind == "ore" or kind == "cart" or kind == "dynamite"
+	return true
 
 func is_heavy() -> bool:
-	return kind == "cart"
+	return bool(data.get("heavy", false))
+
+func is_fragile() -> bool:
+	return bool(data.get("fragile", false))
+
+func value() -> int:
+	return int(data.get("value", 0))
+
+## Cuánto frena al que lo lleva (1 = nada).
+func slow_factor() -> float:
+	if is_heavy():
+		return 0.35 if carriers <= 1 else 0.6
+	return float(data.get("slow", 1.0))
 
 ## Nombre para mostrar en pantalla.
 func display_name() -> String:
-	match kind:
-		"ore":
-			var ore: Dictionary = Config.ORES[info.get("ore", "coal")]
-			return "%s ($%d)" % [ore["name"], ore["value"]]
-		"cart":
-			return "carrito"
-		"dynamite":
-			return "dinamita encendida (%d)" % int(info.get("charge", 1))
-		"support":
-			return "puntal"
-	return kind
-
-func ore_value() -> int:
-	if kind != "ore":
-		return 0
-	return int(Config.ORES[info.get("ore", "coal")]["value"])
+	var n: String = data.get("name", item_id)
+	return "%s ($%d)" % [n, value()] if value() > 1 else n.to_lower()
 
 func _build() -> void:
+	mass = float(data.get("mass", 1.0))
 	can_sleep = true
-	continuous_cd = kind == "ore" or kind == "dynamite"
+	continuous_cd = mass < 3.0
 	var phys := PhysicsMaterial.new()
-	phys.friction = 0.8
+	phys.friction = 0.9 if is_heavy() else 0.7
 	phys.bounce = 0.05
 	physics_material_override = phys
-	match kind:
-		"ore":
-			_build_ore()
-		"cart":
-			_build_cart()
-		"dynamite":
-			_build_dynamite()
-		"support":
-			_build_support()
+	collision_layer = Config.L_BIG if is_heavy() else Config.L_SMALL
+	collision_mask = Config.L_WORLD | Config.L_SMALL | Config.L_BIG | Config.L_PLAYER | Config.L_DOOR | Config.L_OWNER
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = data.get("size", Vector3(0.3, 0.3, 0.3))
+	cs.shape = box
+	add_child(cs)
+	angular_damp = 1.5 if is_heavy() else 0.5
+	_build_visual()
 	if not server_side:
 		# Cliente: no simula, solo sigue lo que manda el anfitrión.
 		freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 		freeze = true
-	elif kind == "support" or (kind == "dynamite" and info.get("stuck", false)):
-		freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
-		freeze = true
-
-func _add_shape(shape: Shape3D, pos := Vector3.ZERO) -> void:
-	var cs := CollisionShape3D.new()
-	cs.shape = shape
-	cs.position = pos
-	add_child(cs)
-
-func _box(size: Vector3) -> BoxShape3D:
-	var b := BoxShape3D.new()
-	b.size = size
-	return b
-
-func _build_ore() -> void:
-	mass = 2.0
-	collision_layer = Config.L_SMALL
-	collision_mask = Config.L_WORLD | Config.L_SMALL | Config.L_BIG | Config.L_PLAYER
-	_add_shape(_box(Vector3(0.38, 0.38, 0.38)))
-	var ore: Dictionary = Config.ORES[info.get("ore", "coal")]
-	var c: Color = ore["color"]
-	var shiny: bool = info.get("ore", "") == "gold" or info.get("ore", "") == "silver"
-	Mats.add_box(self, Vector3(0.36, 0.34, 0.36), Vector3.ZERO, Color(0.36, 0.31, 0.27))
-	var crystal := Mats.add_box(self, Vector3(0.24, 0.3, 0.24), Vector3(0.06, 0.06, 0.02), c, Vector3(20, 35, 10))
-	crystal.material_override = Mats.color(c, 0.3 if shiny else 0.8, 0.35 if shiny else 0.0, 0.6 if shiny else 0.0)
-	var crystal2 := Mats.add_box(self, Vector3(0.18, 0.22, 0.18), Vector3(-0.08, 0.1, -0.06), c, Vector3(-25, 10, 30))
-	crystal2.material_override = crystal.material_override
-
-func _build_cart() -> void:
-	mass = 30.0
-	collision_layer = Config.L_BIG
-	collision_mask = Config.L_WORLD | Config.L_SMALL | Config.L_BIG | Config.L_PLAYER
-	center_of_mass_mode = RigidBody3D.CENTER_OF_MASS_MODE_CUSTOM
-	center_of_mass = Vector3(0, 0.15, 0)
-	angular_damp = 1.0
-	var wood := Color(0.5, 0.34, 0.2)
-	var iron := Color(0.25, 0.26, 0.28)
-	# Base con ruedas, piso y cuatro paredes (la colisión es la misma forma).
-	_add_shape(_box(Vector3(1.3, 0.2, 0.8)), Vector3(0, 0.12, 0))
-	_add_shape(_box(Vector3(1.5, 0.1, 1.0)), Vector3(0, 0.27, 0))
-	_add_shape(_box(Vector3(0.08, 0.6, 1.0)), Vector3(0.71, 0.6, 0))
-	_add_shape(_box(Vector3(0.08, 0.6, 1.0)), Vector3(-0.71, 0.6, 0))
-	_add_shape(_box(Vector3(1.5, 0.6, 0.08)), Vector3(0, 0.6, 0.46))
-	_add_shape(_box(Vector3(1.5, 0.6, 0.08)), Vector3(0, 0.6, -0.46))
-	Mats.add_box(self, Vector3(1.3, 0.12, 0.8), Vector3(0, 0.16, 0), iron)
-	Mats.add_box(self, Vector3(1.5, 0.1, 1.0), Vector3(0, 0.27, 0), wood)
-	Mats.add_box(self, Vector3(0.08, 0.6, 1.0), Vector3(0.71, 0.6, 0), wood)
-	Mats.add_box(self, Vector3(0.08, 0.6, 1.0), Vector3(-0.71, 0.6, 0), wood)
-	Mats.add_box(self, Vector3(1.5, 0.6, 0.08), Vector3(0, 0.6, 0.46), wood.darkened(0.1))
-	Mats.add_box(self, Vector3(1.5, 0.6, 0.08), Vector3(0, 0.6, -0.46), wood.darkened(0.1))
-	for sx in [-0.45, 0.45]:
-		for sz in [-0.45, 0.45]:
-			Mats.add_cylinder(self, 0.13, 0.08, Vector3(sx, 0.13, sz * 1.05), iron, Vector3(90, 0, 0), 10)
-	# Bandas de hierro en las esquinas.
-	for sx in [-0.72, 0.72]:
-		for sz in [-0.47, 0.47]:
-			Mats.add_box(self, Vector3(0.1, 0.62, 0.1), Vector3(sx, 0.6, sz), iron)
-
-func _build_dynamite() -> void:
-	mass = 0.6
-	collision_layer = Config.L_SMALL
-	collision_mask = Config.L_WORLD | Config.L_SMALL | Config.L_BIG | Config.L_PLAYER
-	_add_shape(_box(Vector3(0.3, 0.42, 0.22)))
-	fuse = float(info.get("fuse", Config.FUSE_TIME))
-	var charge := int(info.get("charge", 1))
-	var red := Color(0.8, 0.15, 0.1)
-	for i in charge:
-		var x := (i - (charge - 1) * 0.5) * 0.075
-		Mats.add_cylinder(self, 0.035, 0.38, Vector3(x, 0, 0.0), red.darkened(0.1 * (i % 2)), Vector3.ZERO, 8)
-	Mats.add_box(self, Vector3(0.08 * charge + 0.04, 0.06, 0.09), Vector3(0, 0.05, 0), Color(0.85, 0.8, 0.65))
-	Mats.add_cylinder(self, 0.01, 0.16, Vector3(0, 0.26, 0), Color(0.9, 0.85, 0.7), Vector3(0, 0, 18), 4)
-	# Chispas de la mecha.
-	_spark = CPUParticles3D.new()
-	_spark.amount = 14
-	_spark.lifetime = 0.35
-	_spark.mesh = Mats.box_mesh(Vector3(0.025, 0.025, 0.025))
-	_spark.material_override = Mats.unshaded(Color(1.0, 0.8, 0.3))
-	_spark.direction = Vector3.UP
-	_spark.spread = 60.0
-	_spark.initial_velocity_min = 0.8
-	_spark.initial_velocity_max = 2.0
-	_spark.gravity = Vector3(0, -6, 0)
-	_spark.position = Vector3(0.02, 0.34, 0)
-	add_child(_spark)
-	_spark_light = OmniLight3D.new()
-	_spark_light.light_color = Color(1.0, 0.6, 0.25)
-	_spark_light.light_energy = 1.5
-	_spark_light.omni_range = 4.0
-	_spark_light.position = Vector3(0, 0.4, 0)
-	add_child(_spark_light)
-
-func _build_support() -> void:
-	mass = 20.0
-	collision_layer = Config.L_BIG
-	collision_mask = 0
-	var h := Config.CELL_HEIGHT
-	_add_shape(_box(Vector3(0.28, h, 0.28)), Vector3(0, h * 0.5, 0))
-	var wood := Color(0.6, 0.42, 0.24)
-	Mats.add_box(self, Vector3(0.28, h - 0.25, 0.28), Vector3(0, (h - 0.25) * 0.5, 0), wood)
-	Mats.add_box(self, Vector3(1.8, 0.25, 0.32), Vector3(0, h - 0.125, 0), wood.darkened(0.15))
-	Mats.add_box(self, Vector3(0.5, 0.2, 0.5), Vector3(0, 0.1, 0), wood.darkened(0.25))
+	else:
+		contact_monitor = true
+		max_contacts_reported = 4
+		if info.get("hung", false):
+			freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+			freeze = true
 
 func _ready() -> void:
 	_net_pos = global_position
 	_net_rot = global_transform.basis.get_rotation_quaternion()
-	if kind == "dynamite":
-		_fuse_sound = Sfx.make_loop("fuse", self, -6.0)
-		_fuse_sound.play()
+
+# ---------------------------------------------------------------- modelos
+
+func _box(size: Vector3, pos: Vector3, c: Color, rot := Vector3.ZERO) -> MeshInstance3D:
+	return Mats.add_box(self, size, pos, c, rot)
+
+func _cyl(r: float, h: float, pos: Vector3, c: Color, rot := Vector3.ZERO, sides := 10) -> MeshInstance3D:
+	return Mats.add_cylinder(self, r, h, pos, c, rot, sides)
+
+func _glow(mi: MeshInstance3D, c: Color, energy := 1.5) -> void:
+	mi.material_override = Mats.color(c, 0.4, energy)
+
+func _shiny(mi: MeshInstance3D, c: Color) -> void:
+	mi.material_override = Mats.color(c, 0.25, 0.15, 0.85)
+
+func _build_visual() -> void:
+	var s: Vector3 = data.get("size", Vector3(0.3, 0.3, 0.3))
+	var h := s * 0.5
+	match item_id:
+		"tv":
+			main_color = Color(0.12, 0.12, 0.13)
+			_box(s, Vector3.ZERO, main_color)
+			_glow(_box(Vector3(0.01, s.y - 0.08, s.z - 0.08), Vector3(h.x + 0.003, 0, 0), Color(0.08, 0.1, 0.16)), Color(0.08, 0.1, 0.16), 0.3)
+		"console":
+			main_color = Color(0.1, 0.1, 0.11)
+			_box(s, Vector3.ZERO, main_color)
+			_glow(_box(Vector3(0.01, 0.01, s.z * 0.6), Vector3(h.x + 0.004, 0.01, 0), Color(0.2, 0.5, 1.0)), Color(0.2, 0.5, 1.0), 2.5)
+		"sofa":
+			main_color = Color(0.32, 0.46, 0.36)
+			_box(Vector3(s.x, 0.4, s.z), Vector3(0, -0.2, 0), main_color)
+			_box(Vector3(0.25, 0.42, s.z), Vector3(h.x - 0.125, 0.2, 0), main_color.darkened(0.1))
+			for side in [-1.0, 1.0]:
+				_box(Vector3(s.x, 0.22, 0.2), Vector3(0, 0.1, side * (h.z - 0.1)), main_color.darkened(0.15))
+			for z in [-0.5, 0.5]:
+				_box(Vector3(0.6, 0.12, 0.88), Vector3(-0.1, 0.06, z), main_color.lightened(0.1))
+		"vase":
+			main_color = Color(0.3, 0.45, 0.85)
+			_cyl(0.1, s.y * 0.8, Vector3(0, -0.04, 0), main_color)
+			_cyl(0.06, s.y * 0.25, Vector3(0, 0.15, 0), Color(0.92, 0.92, 0.95))
+		"lamp":
+			main_color = Color(0.95, 0.88, 0.7)
+			_cyl(0.15, 0.04, Vector3(0, -h.y + 0.02, 0), Color(0.25, 0.25, 0.27))
+			_cyl(0.025, s.y - 0.3, Vector3(0, -0.12, 0), Color(0.25, 0.25, 0.27), Vector3.ZERO, 6)
+			_cyl(0.15, 0.28, Vector3(0, h.y - 0.14, 0), main_color)
+		"painting":
+			main_color = Color(0.55, 0.42, 0.2)
+			_box(s, Vector3.ZERO, main_color)
+			var hue := float(entity_id % 7) / 7.0
+			_box(Vector3(s.x - 0.1, s.y - 0.1, 0.01), Vector3(0, 0, -h.z - 0.002), Color.from_hsv(hue, 0.5, 0.75))
+			_box(Vector3(0.18, 0.18, 0.01), Vector3(0.2, 0.12, -h.z - 0.006), Color.from_hsv(fmod(hue + 0.15, 1.0), 0.8, 0.95))
+			_box(Vector3(0.6, 0.2, 0.01), Vector3(-0.1, -0.15, -h.z - 0.006), Color.from_hsv(fmod(hue + 0.4, 1.0), 0.6, 0.5), Vector3(0, 0, 12))
+		"microwave":
+			main_color = Color(0.85, 0.85, 0.85)
+			_box(s, Vector3.ZERO, main_color)
+			_box(Vector3(0.32, 0.22, 0.01), Vector3(-0.06, 0, h.z + 0.004), Color(0.1, 0.1, 0.12))
+			_glow(_box(Vector3(0.07, 0.03, 0.01), Vector3(0.17, 0.08, h.z + 0.004), Color(0.3, 1.0, 0.4)), Color(0.3, 1.0, 0.4), 2.0)
+		"blender":
+			main_color = Color(0.85, 0.3, 0.25)
+			_box(Vector3(0.18, 0.12, 0.18), Vector3(0, -h.y + 0.06, 0), main_color)
+			_cyl(0.075, 0.22, Vector3(0, 0.06, 0), Color(0.75, 0.85, 0.9))
+		"plates":
+			main_color = Color(0.95, 0.95, 0.93)
+			for i in 4:
+				_cyl(0.15, 0.025, Vector3(0, -h.y + 0.015 + i * 0.03, 0), main_color.darkened(0.04 * (i % 2)), Vector3.ZERO, 12)
+		"pot":
+			main_color = Color(0.6, 0.62, 0.66)
+			_shiny(_cyl(0.15, s.y, Vector3.ZERO, main_color, Vector3.ZERO, 12), main_color)
+			for side in [-1.0, 1.0]:
+				_box(Vector3(0.06, 0.03, 0.04), Vector3(side * 0.17, 0.06, 0), Color(0.15, 0.15, 0.15))
+		"chair":
+			main_color = Color(0.5, 0.35, 0.22)
+			_box(Vector3(s.x, 0.05, s.z), Vector3(0, 0, 0), main_color)
+			for sx in [-1.0, 1.0]:
+				for sz in [-1.0, 1.0]:
+					_box(Vector3(0.04, h.y, 0.04), Vector3(sx * (h.x - 0.03), -h.y * 0.5, sz * (h.z - 0.03)), main_color.darkened(0.2))
+			_box(Vector3(s.x, h.y, 0.05), Vector3(0, h.y * 0.5, h.z - 0.03), main_color)
+		"jewelry":
+			main_color = Color(0.45, 0.15, 0.4)
+			_box(Vector3(s.x, s.y * 0.65, s.z), Vector3(0, -s.y * 0.17, 0), main_color)
+			_box(Vector3(s.x + 0.01, s.y * 0.35, s.z + 0.01), Vector3(0, s.y * 0.32, 0), main_color.lightened(0.1))
+			_shiny(_box(Vector3(0.06, 0.04, 0.02), Vector3(0, 0.02, h.z + 0.008), Color(1, 0.8, 0.2)), Color(1, 0.8, 0.2))
+		"watch":
+			main_color = Color(1.0, 0.8, 0.25)
+			_shiny(_cyl(0.05, 0.02, Vector3(0, 0.01, 0), main_color, Vector3.ZERO, 12), main_color)
+			_box(Vector3(0.04, 0.012, s.z), Vector3(0, -0.01, 0), Color(0.3, 0.2, 0.12))
+		"safe":
+			main_color = Color(0.22, 0.24, 0.26)
+			_box(s, Vector3.ZERO, main_color)
+			_box(Vector3(0.01, s.y - 0.08, s.z - 0.08), Vector3(h.x + 0.003, 0, 0), main_color.lightened(0.1))
+			_shiny(_cyl(0.08, 0.04, Vector3(h.x + 0.02, 0.08, 0), Color(0.8, 0.8, 0.82), Vector3(0, 0, 90), 12), Color(0.8, 0.8, 0.82))
+			_shiny(_box(Vector3(0.03, 0.03, 0.18), Vector3(h.x + 0.02, -0.12, 0), Color(0.8, 0.8, 0.82)), Color(0.8, 0.8, 0.82))
+		"laptop":
+			main_color = Color(0.7, 0.72, 0.75)
+			_box(Vector3(s.x, s.y * 0.5, s.z), Vector3(0, -s.y * 0.25, 0), main_color)
+			_box(Vector3(s.x, s.y * 0.5, s.z), Vector3(0, s.y * 0.25, 0), main_color.darkened(0.15))
+			_glow(_box(Vector3(0.05, 0.004, 0.05), Vector3(0, h.y + 0.001, 0), Color(0.9, 0.9, 1.0)), Color(0.9, 0.9, 1.0), 1.0)
+		"pc":
+			main_color = Color(0.12, 0.12, 0.14)
+			_box(s, Vector3.ZERO, main_color)
+			_glow(_box(Vector3(0.01, 0.3, 0.01), Vector3(-h.x - 0.003, 0, h.z - 0.06), Color(0.9, 0.2, 0.9)), Color(0.9, 0.2, 0.9), 2.0)
+		"guitar":
+			main_color = Color(0.7, 0.42, 0.18)
+			_box(Vector3(s.x, 0.46, 0.1), Vector3(0, -0.25, 0), main_color)
+			_box(Vector3(s.x * 0.8, 0.2, 0.1), Vector3(0, -0.02, 0), main_color)
+			_cyl(0.055, 0.012, Vector3(0, -0.15, -0.052), Color(0.08, 0.06, 0.05), Vector3(90, 0, 0), 10)
+			_box(Vector3(0.06, 0.5, 0.04), Vector3(0, 0.25, 0), Color(0.3, 0.2, 0.12))
+			_box(Vector3(0.09, 0.1, 0.04), Vector3(0, h.y - 0.05, 0), Color(0.15, 0.1, 0.07))
+		"trophy":
+			main_color = Color(1.0, 0.78, 0.2)
+			_box(Vector3(0.14, 0.06, 0.14), Vector3(0, -h.y + 0.03, 0), Color(0.25, 0.18, 0.12))
+			_shiny(_cyl(0.02, 0.12, Vector3(0, -0.06, 0), main_color, Vector3.ZERO, 8), main_color)
+			_shiny(_cyl(0.07, 0.14, Vector3(0, 0.1, 0), main_color, Vector3.ZERO, 10), main_color)
+			for side in [-1.0, 1.0]:
+				_shiny(_box(Vector3(0.03, 0.08, 0.02), Vector3(side * 0.08, 0.1, 0), main_color), main_color)
+		"office_chair":
+			main_color = Color(0.15, 0.15, 0.17)
+			_box(Vector3(0.5, 0.08, 0.5), Vector3(0, -0.05, 0), main_color)
+			_box(Vector3(0.48, 0.48, 0.06), Vector3(0, 0.25, 0.22), main_color)
+			_cyl(0.03, 0.35, Vector3(0, -0.27, 0), Color(0.5, 0.5, 0.52), Vector3.ZERO, 6)
+			_box(Vector3(0.5, 0.04, 0.08), Vector3(0, -h.y + 0.04, 0), Color(0.3, 0.3, 0.32))
+			_box(Vector3(0.08, 0.04, 0.5), Vector3(0, -h.y + 0.04, 0), Color(0.3, 0.3, 0.32))
+		"perfume":
+			main_color = Color(0.95, 0.5, 0.75)
+			_cyl(0.045, 0.11, Vector3(0, -0.02, 0), main_color, Vector3.ZERO, 8)
+			_shiny(_box(Vector3(0.04, 0.04, 0.04), Vector3(0, 0.06, 0), Color(1, 0.8, 0.2)), Color(1, 0.8, 0.2))
+		"duck":
+			main_color = Color(1.0, 0.85, 0.1)
+			_box(Vector3(0.16, 0.1, 0.12), Vector3(0, -0.03, 0), main_color)
+			_box(Vector3(0.08, 0.08, 0.08), Vector3(-0.05, 0.05, 0), main_color)
+			_box(Vector3(0.05, 0.02, 0.04), Vector3(-0.1, 0.05, 0), Color(1, 0.5, 0.1))
+		"photo":
+			main_color = Color(0.3, 0.2, 0.12)
+			_box(s, Vector3.ZERO, main_color)
+			_box(Vector3(s.x - 0.04, s.y - 0.04, 0.005), Vector3(0, 0, -h.z - 0.002), Color(0.75, 0.65, 0.55))
+			_box(Vector3(0.05, 0.08, 0.004), Vector3(-0.04, -0.02, -h.z - 0.006), Color(0.3, 0.35, 0.5))
+			_box(Vector3(0.05, 0.1, 0.004), Vector3(0.04, -0.01, -h.z - 0.006), Color(0.55, 0.3, 0.3))
+		_:
+			_box(s, Vector3.ZERO, main_color)
+
+# ---------------------------------------------------------------- red
 
 ## Llega una posición nueva desde el anfitrión.
 func set_net_transform(pos: Vector3, rot: Quaternion) -> void:
@@ -197,36 +250,66 @@ func set_net_transform(pos: Vector3, rot: Quaternion) -> void:
 	_net_rot = rot
 
 func _physics_process(delta: float) -> void:
-	if kind == "dynamite":
-		_update_fuse_fx(delta)
 	if server_side:
+		_server_impacts()
 		return
 	var t := 1.0 - exp(-18.0 * delta)
 	var current := global_transform
 	var rot := current.basis.get_rotation_quaternion().slerp(_net_rot, t)
 	global_transform = Transform3D(Basis(rot), current.origin.lerp(_net_pos, t))
 
-func _update_fuse_fx(delta: float) -> void:
-	fuse = maxf(fuse - delta, 0.0)
-	if _spark_light:
-		# Parpadea cada vez más rápido cuando queda poca mecha.
-		var urgency := 1.0 - clampf(fuse / Config.FUSE_TIME, 0.0, 1.0)
-		_spark_light.light_energy = 1.2 + randf() * (1.0 + urgency * 2.5)
+## Golpes: un cambio brusco de velocidad mientras toca algo.
+## (Los callbacks de física corren antes de cada paso: la velocidad que se ve acá es la del paso anterior.)
+func _server_impacts() -> void:
+	var dv := (linear_velocity - _prev_vel).length()
+	_prev_vel = linear_velocity
+	if _skip_impact > 0:
+		_skip_impact -= 1
+		return
+	if freeze or not holders.is_empty():
+		return
+	if dv > Config.NOISE_IMPACT_MIN_SPEED and get_contact_count() > 0:
+		impact.emit(self, dv)
 
-## Física de "sostener": el objeto va hacia el punto que mira el jugador.
-## Lo llama el anfitrión en cada paso de física mientras alguien lo tiene agarrado.
+## La velocidad cambió a propósito (lanzar, soltar): no es un golpe.
+func ignore_next_impacts(frames := 2) -> void:
+	_skip_impact = frames
+	_prev_vel = linear_velocity
+
+## Física de "sostener": el objeto va hacia el punto que mira cada jugador que lo tiene agarrado.
+## Lo llama el anfitrión en cada paso de física.
 func server_hold_step(delta: float) -> void:
-	var to := hold_target - global_position
-	if is_heavy():
+	var target := Vector3.ZERO
+	for h: Array in holders.values():
+		target += h[0]
+	target /= holders.size()
+	var to := target - global_position
+	dragging = false
+	if is_heavy() and holders.size() == 1:
+		# Una sola persona: se arrastra por el piso (lento y ruidoso).
 		to.y = 0.0
-		var desired := (to * 6.0).limit_length(3.5)
-		desired.y = linear_velocity.y
+		var desired := (to * 4.0).limit_length(DRAG_SPEED)
+		desired.y = minf(linear_velocity.y, 0.0)
 		linear_velocity = linear_velocity.lerp(desired, clampf(delta * 8.0, 0.0, 1.0))
-		angular_velocity *= 0.9
+		angular_velocity *= 0.8
+		dragging = Vector2(linear_velocity.x, linear_velocity.z).length() > 0.3
+	elif is_heavy():
+		# Entre dos o más: se levanta y se lleva.
+		var desired := (to * 6.0).limit_length(LIFT_SPEED)
+		linear_velocity = linear_velocity.lerp(desired, clampf(delta * 10.0, 0.0, 1.0))
+		_keep_upright(delta)
 	else:
 		var desired := (to * 12.0).limit_length(14.0)
 		linear_velocity = linear_velocity.lerp(desired, clampf(delta * 20.0, 0.0, 1.0))
 		angular_velocity *= 0.85
+	_prev_vel = linear_velocity
+
+## Endereza de a poco un mueble que se está cargando (para que no gire como trompo).
+func _keep_upright(delta: float) -> void:
+	var up := global_transform.basis.y
+	var axis := up.cross(Vector3.UP)
+	angular_velocity = angular_velocity.lerp(axis * 6.0, clampf(delta * 8.0, 0.0, 1.0))
+	angular_velocity.y *= 0.8
 
 ## ¿Se movió lo suficiente como para mandarlo por red?
 func needs_sync(delta: float) -> bool:

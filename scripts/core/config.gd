@@ -3,103 +3,119 @@ extends RefCounted
 ## Constantes del juego en un solo lugar, para ajustar el balance sin buscar por todo el código.
 
 # --- Capas de colisión (valores de bit) ---
-const L_WORLD := 1    # terreno, celdas de roca, paredes, montacargas
+const L_WORLD := 1    # piso, paredes, muebles fijos, camión
 const L_PLAYER := 2   # jugadores
-const L_SMALL := 4    # objetos chicos: mineral, dinamita
-const L_BIG := 8      # objetos grandes: carrito, puntales
+const L_SMALL := 4    # objetos que se agarran con una mano
+const L_BIG := 8      # objetos pesados (se cargan entre dos)
+const L_OWNER := 16   # el dueño de casa
+const L_DOOR := 32    # hojas de las puertas
+const L_WALL := 64    # paredes y techo (para saber cuánto tapan el sonido y la vista)
 
-# --- Mina ---
-const CELL_SIZE := 2.0        # ancho de cada columna de roca (metros)
-const CELL_HEIGHT := 3.0      # alto de la galería
-const MINE_Y := -30.0         # altura del piso de la mina (la superficie está en 0)
-const GRID_MIN := -14         # la grilla va de GRID_MIN a GRID_MAX (incluidos); el borde es roca madre
-const GRID_MAX := 13
-const ZONE_CELLS := 4         # cada "zona" de estabilidad mide 4x4 celdas
+# --- Jugadores ---
+const WALK := 4.0
+const SPRINT := 6.5
+const CROUCH := 1.9
+const INTERACT_RANGE := 2.6
+const THROW_SPEED := 8.0
+const LEAVE_HOLD_TIME := 1.2      # segundos manteniendo E en la cabina para irse
 
-enum Cell { EMPTY, BEDROCK, ROCK, COAL, IRON, SILVER, GOLD, RUBBLE }
+# --- Ruido ---
+## El dueño "oye" cada ruido según lo fuerte que es (0..1+), la distancia y las paredes en el medio.
+## oído = fuerza * atenuación(distancia) * WALL_FACTOR ^ paredes
+## Lo que pase de HEARING_FLOOR se suma a su nivel de alerta (0 a 100).
+const HEARING_DISTANCE := 5.0     # a esta distancia el ruido llega a la mitad
+const WALL_FACTOR := 0.7
+const HEARING_FLOOR := 0.04
+const ALERT_GAIN := 100.0
+const ALERT_DECAY := 2.5          # por segundo, cuando hay silencio
+const ALERT_RESTLESS := 35.0      # deja de roncar y se da vuelta
+const ALERT_STIRRING := 70.0      # medio despierto: si ve a alguien moverse en la pieza, se levanta
+const ALERT_WAKE := 100.0
+const LIGHTER_SLEEP := 1.25       # cada vez que se vuelve a dormir tiene el sueño más liviano
 
-## Datos de cada tipo de celda: golpes de pico que aguanta, mineral que suelta y cuántos trozos.
-const CELL_INFO := {
-	Cell.BEDROCK: {"name": "Roca madre", "hp": 0, "ore": "", "drops": 0},
-	Cell.ROCK: {"name": "Roca", "hp": 4, "ore": "", "drops": 0},
-	Cell.COAL: {"name": "Veta de carbón", "hp": 5, "ore": "coal", "drops": 3},
-	Cell.IRON: {"name": "Veta de hierro", "hp": 6, "ore": "iron", "drops": 3},
-	Cell.SILVER: {"name": "Veta de plata", "hp": 7, "ore": "silver", "drops": 2},
-	Cell.GOLD: {"name": "Veta de oro", "hp": 8, "ore": "gold", "drops": 2},
-	Cell.RUBBLE: {"name": "Escombros", "hp": 2, "ore": "", "drops": 0},
+## Ruido de cada cosa: [fuerza, peso]. El peso es cuánto "dura" (un golpe suelto pesa más que un paso).
+const NOISE_STEP_WALK := [0.12, 0.5]
+const NOISE_STEP_SPRINT := [0.35, 0.5]
+const NOISE_STEP_CROUCH := [0.02, 0.5]
+const STEP_INTERVAL_WALK := 0.5
+const STEP_INTERVAL_SPRINT := 0.32
+const STEP_INTERVAL_CROUCH := 0.7
+const NOISE_BOARD := [0.5, 1.0]         # tabla del piso que cruje
+const NOISE_BOARD_CROUCH := [0.25, 1.0]
+const NOISE_SCRAPE := [0.4, 0.3]        # arrastrar algo pesado solo (cada 0,3 s)
+const NOISE_CRASH := [1.2, 1.5]         # algo que se rompe
+const NOISE_IMPACT_K := 0.06            # golpe de un objeto: fuerza = velocidad * raíz(masa) * K
+const NOISE_IMPACT_MIN_SPEED := 1.2
+const VOICE_LOUDNESS := 1.0             # el micrófono (0..1) se multiplica por esto
+
+# --- El dueño ---
+const OWNER_WALK := 2.2           # en pantuflas, investigando
+const OWNER_RUN := 4.6            # persiguiendo
+const OWNER_CATCH := 1.1          # distancia a la que atrapa
+const OWNER_VIEW_RANGE := 12.0
+const OWNER_VIEW_RANGE_LIGHT := 18.0   # si el ladrón tiene la linterna prendida
+const OWNER_VIEW_RANGE_CROUCH := 6.0
+const OWNER_VIEW_ANGLE := 55.0         # grados a cada lado
+const OWNER_GLANCE := 2.5              # de reojo (fuera del cono) ve a quien está así de cerca...
+const OWNER_GLANCE_CROUCH := 1.2       # ...o así, si está agachado
+const OWNER_GLANCE_LIGHT := 5.0        # una linterna prendida se nota de reojo desde más lejos
+const OWNER_SEARCH_TIME := 5.0
+const OWNER_LOSE_TIME := 1.5           # cuánto tarda en "perder" a alguien que dejó de ver
+const CAUGHT_STUN := 2.5
+
+# --- La noche ---
+const NIGHT_LENGTH := 420.0       # segundos hasta que amanece
+const POLICE_DELAY := 60.0        # desde que el dueño atrapa a alguien y llama a la policía
+const ARREST_FINE := 300          # por cada ladrón que se queda adentro cuando llega la policía
+
+static func quota_for_night(night: int) -> int:
+	return 1800 + 400 * (night - 1)
+
+## Estrellas de la noche según lo que quedó en el camión.
+static func stars(value: int, quota: int) -> int:
+	if value >= quota * 2.5:
+		return 3
+	if value >= quota * 1.75:
+		return 2
+	if value >= quota:
+		return 1
+	return 0
+
+# --- Objetos ---
+## name: lo que se ve en pantalla · value: precio · mass: kg · size: caja de colisión
+## fragile/break: se rompe si choca con un cambio de velocidad mayor a `break` m/s
+## heavy: se carga entre dos (solo, se arrastra y hace ruido) · hang: colgado de la pared hasta que se agarra
+## slow: cuánto frena al que lo lleva (1 = nada)
+const ITEMS := {
+	"tv": {"name": "Televisor", "value": 400, "mass": 14.0, "size": Vector3(0.15, 0.65, 1.1), "fragile": true, "break": 6.0, "slow": 0.75},
+	"console": {"name": "Consola", "value": 250, "mass": 2.5, "size": Vector3(0.3, 0.08, 0.26)},
+	"sofa": {"name": "Sillón", "value": 300, "mass": 45.0, "size": Vector3(0.9, 0.8, 2.2), "heavy": true},
+	"vase": {"name": "Jarrón", "value": 120, "mass": 2.0, "size": Vector3(0.22, 0.4, 0.22), "fragile": true, "break": 3.5},
+	"lamp": {"name": "Lámpara de pie", "value": 60, "mass": 4.0, "size": Vector3(0.3, 1.6, 0.3), "fragile": true, "break": 4.5, "slow": 0.85},
+	"painting": {"name": "Cuadro", "value": 200, "mass": 3.0, "size": Vector3(1.0, 0.7, 0.05), "hang": true, "slow": 0.9},
+	"microwave": {"name": "Microondas", "value": 150, "mass": 10.0, "size": Vector3(0.5, 0.3, 0.36), "slow": 0.8},
+	"blender": {"name": "Licuadora", "value": 80, "mass": 2.0, "size": Vector3(0.18, 0.36, 0.18), "fragile": true, "break": 5.0},
+	"plates": {"name": "Platos", "value": 0, "mass": 2.0, "size": Vector3(0.3, 0.12, 0.3), "fragile": true, "break": 3.0},
+	"pot": {"name": "Olla", "value": 0, "mass": 1.5, "size": Vector3(0.3, 0.2, 0.3)},
+	"chair": {"name": "Silla", "value": 0, "mass": 5.0, "size": Vector3(0.45, 0.9, 0.45), "slow": 0.85},
+	"jewelry": {"name": "Joyero", "value": 600, "mass": 1.0, "size": Vector3(0.3, 0.18, 0.22)},
+	"watch": {"name": "Reloj de oro", "value": 250, "mass": 0.3, "size": Vector3(0.14, 0.06, 0.14)},
+	"safe": {"name": "Caja fuerte", "value": 1200, "mass": 80.0, "size": Vector3(0.7, 0.7, 0.6), "heavy": true},
+	"laptop": {"name": "Notebook", "value": 500, "mass": 2.0, "size": Vector3(0.36, 0.04, 0.26), "fragile": true, "break": 7.0},
+	"pc": {"name": "Computadora", "value": 350, "mass": 9.0, "size": Vector3(0.22, 0.46, 0.46), "slow": 0.8},
+	"guitar": {"name": "Guitarra", "value": 350, "mass": 3.5, "size": Vector3(0.36, 1.0, 0.12), "slow": 0.9},
+	"trophy": {"name": "Trofeo", "value": 300, "mass": 1.5, "size": Vector3(0.16, 0.36, 0.16)},
+	"office_chair": {"name": "Silla de escritorio", "value": 0, "mass": 8.0, "size": Vector3(0.55, 1.0, 0.55), "slow": 0.85},
+	"perfume": {"name": "Perfume", "value": 90, "mass": 0.3, "size": Vector3(0.1, 0.16, 0.1), "fragile": true, "break": 4.0},
+	"duck": {"name": "Patito de hule", "value": 1, "mass": 0.2, "size": Vector3(0.16, 0.16, 0.16)},
+	"photo": {"name": "Foto familiar", "value": 30, "mass": 0.5, "size": Vector3(0.22, 0.26, 0.06)},
 }
+const MAX_ENTITIES := 120
 
-## Minerales: nombre visible, precio por trozo y color.
-const ORES := {
-	"coal": {"name": "Carbón", "value": 6, "color": Color(0.17, 0.17, 0.18)},
-	"iron": {"name": "Hierro", "value": 12, "color": Color(0.72, 0.42, 0.25)},
-	"silver": {"name": "Plata", "value": 25, "color": Color(0.82, 0.86, 0.92)},
-	"gold": {"name": "Oro", "value": 50, "color": Color(1.0, 0.78, 0.18)},
-}
+static func item(id: String) -> Dictionary:
+	return ITEMS.get(id, ITEMS["pot"])
 
-# --- Herramientas ---
-const PICK_RANGE := 3.0
-const PICK_COOLDOWN := 0.45
-const INTERACT_RANGE := 3.2
-const DYNAMITE_COST := 5      # por cartucho
-const MAX_CHARGE := 4         # cartuchos por carga
-const FUSE_TIME := 4.0        # segundos de mecha
-const SUPPORT_COST := 15
-const THROW_SPEED := 9.0
-const MAX_ENTITIES := 260     # tope de objetos físicos para no matar el rendimiento
-
-## Radio de la explosión en metros según cantidad de cartuchos.
-static func blast_radius(charge: int) -> float:
-	return 2.2 + 1.3 * charge
-
-# --- Derrumbes ---
-## Probabilidad base de derrumbe por cantidad de cartuchos (índice = cartuchos).
-const BASE_COLLAPSE := [0.0, 0.05, 0.14, 0.30, 0.52]
-## Estabilidad que pierde la zona con cada explosión (índice = cartuchos).
-const STABILITY_LOSS := [0.0, 0.06, 0.15, 0.28, 0.45]
-const STABILITY_RECOVERY := 0.004   # por segundo
-const COLLAPSE_WARNING := 1.6       # segundos de crujidos antes de que caiga el techo
-
-## Probabilidad de derrumbe de una explosión.
-## Más cartuchos y menos estabilidad = más riesgo. Cada puntal cerca reduce el riesgo a la mitad.
-static func collapse_chance(charge: int, stability: float, supports: int) -> float:
-	var p: float = BASE_COLLAPSE[clampi(charge, 0, MAX_CHARGE)]
-	p *= 1.0 + 2.0 * (1.0 - stability)
-	p *= pow(0.5, supports)
-	return clampf(p, 0.0, 0.95)
-
-## Riesgo en palabras (la idea es que se sienta, no que se lea un número).
-static func risk_word(p: float) -> String:
-	if p < 0.08:
-		return "bajo"
-	if p < 0.2:
-		return "moderado"
-	if p < 0.4:
-		return "alto"
-	return "muy alto"
-
-# --- Montacargas ---
-const LIFT_TOP := 0.0
-const LIFT_BOTTOM := MINE_Y
-const LIFT_FAST := 6.0      # desde el panel de arriba
-const LIFT_SLOW := 1.5      # desde el panel de abajo (lento pero seguro)
-const LIFT_ACCEL := 5.0
-const LIFT_BRAKE := 22.0
-const LIFT_DERAIL_SPEED := 3.0   # frenar o llegar al tope más rápido que esto descarrila la carga
-
-# --- Economía: el prestamista ---
-const START_MONEY := 40
-const START_DEBT := 1500
-const DAY_LENGTH := 300.0          # segundos por día de juego
-const MAX_STRIKES := 3
-
-## Cuota que cobra el prestamista al terminar cada día.
-static func quota_for_day(day: int) -> int:
-	return 120 + 80 * (day - 1)
-
-# --- Lugares de la superficie ---
-const SELL_ZONE_POS := Vector3(9.0, 0.0, 0.0)
-const SPAWN_POS := Vector3(5.0, 1.0, 7.0)
+# --- Lugares ---
 const PLAYER_COLORS := [
 	Color(0.95, 0.55, 0.15), Color(0.25, 0.55, 0.95),
 	Color(0.35, 0.8, 0.35), Color(0.75, 0.4, 0.9),
