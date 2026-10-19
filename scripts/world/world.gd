@@ -26,6 +26,8 @@ var moon: DirectionalLight3D
 var truck_area: Area3D
 var bedroom_lamp: OmniLight3D
 var homeowner: HouseOwner
+var house_refs: Dictionary     # lo que armó HouseBuilder (para cambiar el estilo de la casa)
+var _style_shown := -1
 var doors: Array[Door] = []
 var boards: Array = []
 var item_spawns: Array = []
@@ -67,6 +69,7 @@ var _siren_light: OmniLight3D
 func _ready() -> void:
 	is_server = multiplayer.is_server()
 	var refs := HouseBuilder.build(self)
+	house_refs = refs
 	env = refs["env"]
 	moon = refs["moon"]
 	truck_area = refs["truck_area"]
@@ -75,6 +78,7 @@ func _ready() -> void:
 	item_spawns = refs["items"]
 	for d: Door in refs["doors"]:
 		doors.append(d)
+	_show_style(0)
 	homeowner = HouseOwner.new()
 	homeowner.setup(self, is_server)
 	add_child(homeowner)
@@ -103,13 +107,20 @@ func _ready() -> void:
 		hud.show_banner("Llegando a la casa...")
 		rpc_hello.rpc_id(1, Net.player_name)
 
+## Cada noche la casa tiene otro estilo (fachada, techo, pinturas, pisos). La semilla viaja en `game`.
+func _show_style(seed: int) -> void:
+	if seed == _style_shown:
+		return
+	_style_shown = seed
+	HouseBuilder.apply_style(house_refs, seed)
+
 func _intro_text() -> String:
 	return "Noche %d: la casa de Don Ramón. Carguen en el camión al menos $%d antes de que amanezca. ¡Y no lo despierten!" \
 			% [int(game.get("night", 1)), int(game.get("quota", 0))]
 
 func _build_siren() -> void:
 	var holder := Node3D.new()
-	holder.position = Vector3(-14.0, 1.5, 21.0)
+	holder.position = Vector3(-30.0, 1.5, 21.0)
 	add_child(holder)
 	_siren = Sfx.make_loop("siren", holder, -30.0)
 	_siren.unit_size = 30.0
@@ -310,6 +321,7 @@ func _apply_snapshot(snap: Dictionary) -> void:
 		_destroy_entity(id)
 	game = snap["game"]
 	results = snap["results"]
+	_show_style(int(game.get("style", 0)))
 	for d: Array in snap["entities"]:
 		var e := _create_entity(d[0], d[1], d[2], d[3], d[4])
 		e.carriers = d[5]
@@ -573,7 +585,7 @@ func rpc_req_leave() -> void:
 func _srv_leave(peer: int) -> void:
 	if not HouseBuilder.at_truck(player_position(peer)):
 		return
-	_srv_sound("honk", Vector3(-4.0, 1.4, 15.0), 4.0)
+	_srv_sound("honk", HouseBuilder.TRUCK_POS + Vector3(-3.0, 1.4, 0), 4.0)
 	_srv_end_night("leave")
 
 # ================================================================ ruido
@@ -767,7 +779,9 @@ func _srv_new_night(night: int, bank: int) -> void:
 		"police": -1.0,
 		"over": false,
 		"bank": bank,
+		"style": _rng.randi_range(1, 999999),
 	}
+	_show_style(int(game["style"]))
 	_game_dirty = true
 	night_started.emit()
 
@@ -889,6 +903,7 @@ func rpc_night_over(res: Dictionary, state: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_game(state: Dictionary) -> void:
 	game = state
+	_show_style(int(game.get("style", 0)))
 	game_changed.emit()
 
 # ================================================================ bucle principal

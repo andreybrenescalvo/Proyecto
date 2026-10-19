@@ -78,7 +78,17 @@ func _run_host() -> void:
 	await _talk(0.15, 2.0)
 	_check(don.alert < 3.0, "un susurro en la sala casi no se oye (%.1f)" % don.alert)
 
-	# 3. La puerta del dormitorio chilla (y el cliente la ve abierta).
+	# 3. Las puertas: cerradas tapan el paso; abiertas, se puede pasar de verdad.
+	var front := world.doors[0]
+	_check(_door_blocks(front), "la puerta de calle cerrada tapa el paso")
+	world.srv_set_door(0, true, 1)
+	await _wait(1.0)
+	_check(not _door_blocks(front), "la puerta de calle abierta deja pasar")
+	world.srv_set_door(0, false, 1)
+	await _wait(1.0)
+	_check(_door_blocks(front), "y al cerrarla vuelve a tapar")
+	don.alert = 0.0
+	# La puerta del dormitorio chilla (y el cliente la ve abierta).
 	don.alert = 0.0
 	world.srv_set_door(2, true, 1)
 	_check(world.doors[2].is_open, "se abrió la puerta del dormitorio")
@@ -92,8 +102,10 @@ func _run_host() -> void:
 	_check(world._srv_grab(1, jewelry.entity_id), "se agarró el joyero")
 	await _wait(0.3)
 	_check(me.holding_id == jewelry.entity_id, "el jugador lo tiene en la mano")
-	me.teleport(Vector3(-4.0, 0.65, 12.0))
-	jewelry.global_position = Vector3(-4.0, 1.6, 10.6)
+	# Adentro de la caja del camión, mirando hacia la cabina.
+	me.teleport(Vector3(-8.6, 0.65, 18.7))
+	me.yaw = PI * 0.5
+	jewelry.global_position = Vector3(-9.8, 1.6, 18.7)
 	await _wait(0.8)
 	world.request_release(jewelry.entity_id, Vector3.ZERO)
 	me.holding_id = 0
@@ -162,13 +174,14 @@ func _run_host() -> void:
 	_check(saw_chase, "persiguió a alguien")
 	_check(anyone_caught, "atrapó a alguien y lo echó")
 	_check(world.police_coming(), "llamó a la policía (%.0f s)" % float(world.game["police"]))
+	me.yaw = 0.0
 	await _wait(0.6)
 	if int(world._stats[1]["caught"]) > 0:
 		_check(not HouseBuilder.in_house(me.global_position), "el anfitrión terminó afuera de la casa (%s)" % me.global_position.snapped(Vector3(0.1, 0.1, 0.1)))
 
 	# 8. Irse con el camión.
 	await _wait(1.0)
-	me.teleport(Vector3(-5.6, 0.1, 14.0))
+	me.teleport(Vector3(-13.0, 0.1, 16.8))
 	await _wait(0.3)
 	world._srv_leave(1)
 	await _wait(0.5)
@@ -192,6 +205,17 @@ func _run_host() -> void:
 	if expect_clients > 0:
 		await _compare_clients(false, 2)
 	_finish()
+
+## ¿Hay una hoja de puerta en el medio del vano? (Una cápsula del tamaño de un jugador.)
+func _door_blocks(d: Door) -> bool:
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.3
+	shape.height = 1.6
+	var q := PhysicsShapeQueryParameters3D.new()
+	q.shape = shape
+	q.transform = Transform3D(Basis(), d.center() + Vector3(0, 1.0, 0))
+	q.collision_mask = Config.L_DOOR
+	return not world.get_world_3d().direct_space_state.intersect_shape(q, 1).is_empty()
 
 func _compare_clients(results_expected: bool, night: int) -> void:
 	await _wait(1.0)

@@ -10,16 +10,26 @@ Es el **primer prototipo** de la idea del [plan del juego](docs/plan-juego-steam
 solo la parte de la noche, para comprobar si el robo en silencio es divertido antes de agregar
 la mudanza de día, más casas, arte y sonido de verdad.
 
-| Afuera | Adentro |
+| La casa de Don Ramón | Cada noche cambia de estilo |
 |---|---|
-| ![La casa de noche con el camión de Mudanzas Truchas en la entrada](docs/capturas/casa.png) | ![La cocina iluminada con la linterna](docs/capturas/cocina.png) |
-| **Don Ramón durmiendo** | **Cuando te atrapa** |
-| ![Don Ramón dormido en su cama, con los "z Z z" encima](docs/capturas/dormitorio.png) | ![Aviso de que Don Ramón echó a un jugador y la cuenta regresiva de la policía](docs/capturas/policia.png) |
+| ![Frente de ladrillo con postigos, alero y camino de piedra](docs/capturas/casa.png) | ![La misma casa con estuco rosado y tejas de arcilla](docs/capturas/otro_estilo.png) |
+| **El barrio y el camión en la calle** | **La cocina** |
+| ![Calle con casas vecinas distintas, autos estacionados y el camión de mudanzas](docs/capturas/barrio.png) | ![Cocina con baldosas, mesada de mármol y alacenas](docs/capturas/cocina.png) |
+| **El dormitorio** | **Don Ramón despierto, buscando** |
+| ![Dormitorio con empapelado, cortinas y piso de madera; Don Ramón dormido](docs/capturas/dormitorio.png) | ![Don Ramón en pijama y gorro de dormir caminando por el pasillo](docs/capturas/don_ramon.png) |
 
 ## Qué tiene el prototipo
 
 - **La casa de Don Ramón:** sala, cocina, pasillo, dormitorio, estudio y baño, con 5 puertas
   (la del dormitorio chilla) y tablas del piso que crujen al pisarlas.
+- **Texturas** (ladrillo, revestimiento de madera, estuco, tejas, pisos de madera, baldosas,
+  alfombra, empapelados, pasto, asfalto, vereda, follaje...) con relieve, para que la linterna
+  marque las juntas y la veta. Las genera `tools/generate_textures.py`: son propias, sin licencias.
+- **Cada noche la casa es distinta:** cambia la fachada (madera de colores, ladrillo o estuco),
+  el techo (tejas asfálticas o de arcilla), los postigos, la puerta, la pintura o el empapelado de
+  cada cuarto, los pisos, las cortinas y la frazada. Todos los jugadores ven el mismo estilo.
+- **El barrio:** siete casas vecinas distintas (de uno o dos pisos, con o sin garaje, ventanas
+  prendidas o apagadas), autos estacionados, faroles, cercos vivos y un camino de piedra.
 - **24 objetos con física:** televisor, consola, joyero (en el velador, al lado de su cabeza),
   notebook, caja fuerte, sillón, cuadros colgados... y cosas sin valor que solo hacen ruido
   (sillas, platos, una olla, un patito de hule). Lo frágil se rompe si se cae o se lanza.
@@ -34,8 +44,9 @@ la mudanza de día, más casas, arte y sonido de verdad.
   (le cuesta más si está agachado o detrás de un mueble; le es más fácil con la linterna
   prendida) lo persigue. Al que atrapa **lo tira a la calle y llama a la policía**: llega en
   60 segundos. Si no encuentra a nadie, vuelve a la cama... con el sueño más liviano.
-- **El camión:** lo que está adentro de la caja de carga cuenta como botín. Para terminar la
-  noche, alguien mantiene E en la puerta del conductor. Los que se quedan adentro de la casa
+- **El camión:** está estacionado en la calle, a unos 14 m de la puerta (más cerca, el motor
+  despertaría a Don Ramón). Lo que está adentro de la caja de carga cuenta como botín. Para
+  terminar la noche, alguien mantiene E en la puerta del conductor (la que da a la vereda). Los que se quedan adentro de la casa
   cuentan como detenidos (multa de $300 cada uno).
 - **Resultados de la noche:** botín contra la cuota, de 0 a 3 estrellas y "premios":
   *El más ruidoso*, *Despertador humano* (quién lo despertó), *Manos de mantequilla*,
@@ -102,8 +113,9 @@ micrófono.
 
 ## Cómo se juega
 
-1. Empiezan al lado del camión, estacionado en la entrada. La cuota de la primera noche es de $1.800.
-2. Entran a la casa (la puerta de calle y la de la cocina están cerradas: abrirlas hace un poco de ruido).
+1. Empiezan en la vereda, junto al camión. La cuota de la primera noche es de $1.800.
+2. Cruzan el jardín por el camino de piedra y entran a la casa: la puerta de calle está cerrada,
+   se abre con **E** (hace un poco de ruido). La de la cocina, atrás, también sirve.
 3. Buscan lo que vale y lo llevan a la caja del camión. Lo chico se lleva en la mano; lo pesado, entre dos.
 4. Arriba de la pantalla se ve cómo duerme Don Ramón. Si la barra se vacía, se despierta.
 5. Cuando quieran irse (o si viene la policía), todos al camión y alguien mantiene E en la puerta del conductor.
@@ -126,7 +138,7 @@ scripts/
     fx.gd                  Partículas, destellos y textos flotantes
   world/
     world.gd               La partida: reglas, ruido, camión, policía, red (RPC)
-    house_builder.gd       La casa, el patio, la calle y el camión; puntos por donde camina el dueño
+    house_builder.gd       La casa, sus estilos, el barrio y el camión; puntos por donde camina el dueño
     house_owner.gd         Don Ramón: oído, vista y máquina de estados
     door.gd                Puertas con bisagra
   entities/entity.gd       Objetos físicos (lo que se roba y lo que solo hace ruido)
@@ -134,6 +146,8 @@ scripts/
   ui/hud.gd, ui/menu.gd    Interfaz (y resultados de la noche)
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
+assets/textures/           Texturas (color + relieve) generadas por tools/generate_textures.py
+tools/generate_textures.py Generador de texturas (Python con numpy y Pillow)
 docs/                      Plan del juego y capturas
 ```
 
@@ -151,6 +165,10 @@ Todo está en `scripts/core/config.gd`. Lo más importante para probar con amigo
 - `NOISE_*`: cuánto ruido hace cada cosa (pasos, tablas, arrastrar, romper).
 - `OWNER_*`: velocidad, distancia a la que ve y cuánto tarda en rendirse.
 - `ITEMS`: valor, peso y fragilidad de cada objeto.
+
+Los estilos de casa están en `scripts/world/house_builder.gd` (`FACADES`, `PAINTS`, `PAPERS`,
+`WOODS`, `CARPETS`, `TILES`). Para cambiar una textura: editar `tools/generate_textures.py`,
+correr `python3 tools/generate_textures.py` y abrir el proyecto en Godot (las reimporta solo).
 
 F3 muestra en el juego la alerta en números y los últimos ruidos que oyó, con cuánto subió cada uno.
 
@@ -176,8 +194,9 @@ capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida`.
 - **Voz por proximidad dentro del juego** (con la API de voz de Steam): escuchar a los demás más
   fuerte cuanto más cerca estén. Es la mitad de la gracia en los clips.
 - La **mudanza de día** (ver el plan): ver la casa por dentro antes de robarla.
-- Más casas (la abuela con gatos, el policía jubilado, la mansión) y la barra de sospecha.
-- Arte de verdad (Kenney, Quaternius), sonidos y música.
+- Más casas para robar con otra distribución de cuartos (la abuela con gatos, el policía
+  jubilado, la mansión) y la barra de sospecha.
+- Modelos de verdad para los muebles y los personajes, sonidos y música.
 - Abrir la página "Próximamente" en Steam lo antes posible para juntar wishlists.
 
 El prototipo anterior (*Mineros Endeudados*) sigue en el historial de git, en el commit `6a41459`.

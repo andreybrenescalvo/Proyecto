@@ -4,7 +4,7 @@ extends Node
 ##   godot --path . -- --host --tour=/carpeta/de/fotos
 ##
 ## Pone la cámara en varios lugares de la casa, despierta a Don Ramón, termina la noche
-## y guarda capturas.
+## y guarda capturas. Con `--tour-quick` saca solo dos fotos del frente (para probar cambios rápido).
 
 var world: World
 var out_dir := ""
@@ -15,21 +15,40 @@ func _ready() -> void:
 	Voice.debug_level = 0.0
 	await _wait(2.0)
 	var don := world.homeowner
-	# Afuera: la casa y el camión.
-	await _shot_from(Vector3(-11.0, 0.1, 15.5), Vector3(-2.0, 1.6, 6.0), "casa_y_camion")
-	await _shot_from(Vector3(-4.0, 0.1, 7.0), Vector3(-4.0, 1.0, 12.0), "camion_por_dentro")
+	if OS.get_cmdline_user_args().has("--tour-quick"):
+		world._show_style(77)
+		await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "rapido_frente")
+		await _shot_from(Vector3(-15.0, 0.1, 20.5), Vector3(-4.0, 1.8, 6.0), "rapido_casa_y_camion")
+		get_tree().quit(0)
+		return
+	# Afuera: la casa, el camión en la calle y el barrio.
+	await _shot_from(Vector3(-15.0, 0.1, 20.5), Vector3(-4.0, 1.8, 6.0), "casa_y_camion")
+	await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "frente_de_la_casa")
+	await _shot_from(Vector3(-5.6, 0.1, 18.7), Vector3(-11.0, 1.0, 18.7), "camion_por_dentro")
+	await _shot_from(Vector3(6.0, 0.1, 19.0), Vector3(-14.0, 2.5, 30.0), "barrio")
 	# Adentro, con la linterna.
 	world.srv_set_door(0, true, 0)
 	await _wait(0.6)
-	await _shot_from(Vector3(-4.0, 0.1, 8.5), Vector3(-4.0, 1.2, 2.0), "puerta_de_calle")
+	await _shot_from(Vector3(-4.0, 0.1, 9.0), Vector3(-4.0, 1.2, 2.0), "puerta_de_calle")
 	await _shot_from(Vector3(-0.8, 0.1, 0.8), Vector3(-7.0, 0.8, 3.5), "sala")
 	await _shot_from(Vector3(-0.8, 0.1, -0.8), Vector3(-5.0, 0.9, -5.5), "cocina")
 	await _shot_from(Vector3(1.0, 0.1, -5.0), Vector3(1.0, 1.2, 4.0), "pasillo")
 	world.srv_set_door(2, true, 0)
+	world.srv_set_door(4, true, 0)
 	await _wait(0.8)
 	await _shot_from(Vector3(1.0, 0.1, 2.4), Vector3(7.0, 0.8, 4.2), "dormitorio_dormido")
 	await _shot_from(Vector3(5.0, 0.1, 2.0), Vector3(7.2, 0.9, 4.2), "don_ramon_de_cerca")
 	await _shot_from(Vector3(2.6, 0.1, -0.6), Vector3(7.5, 0.8, -1.5), "estudio")
+	await _shot_from(Vector3(2.6, 0.1, -4.5), Vector3(7.5, 0.8, -4.5), "baño")
+	# Otro estilo de casa (como si fuera otra noche).
+	world._show_style(4242)
+	await _wait(0.3)
+	await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "otro_estilo_frente")
+	await _shot_from(Vector3(-0.8, 0.1, 0.8), Vector3(-7.0, 0.8, 3.5), "otro_estilo_sala")
+	world._show_style(77)
+	await _wait(0.3)
+	await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "tercer_estilo_frente")
+	await _shot_from(Vector3(5.0, 0.1, 2.0), Vector3(7.2, 0.9, 4.2), "tercer_estilo_dormitorio")
 	# Despertarlo y dejar que salga a buscar.
 	world.local_player.flashlight_on = true
 	world.local_player.teleport(Vector3(-3.0, 0.1, 1.0))
@@ -39,7 +58,7 @@ func _ready() -> void:
 	await _wait(1.5)
 	await _shot_from(Vector3(1.0, 0.1, -3.0), Vector3(1.5, 1.5, 3.0), "te_busca")
 	# Fin de la noche.
-	world.local_player.teleport(Vector3(-5.6, 0.1, 14.0))
+	world.local_player.teleport(Vector3(-13.0, 0.1, 16.8))
 	world._srv_end_night("leave")
 	await _wait(1.0)
 	await _shot("resultados")

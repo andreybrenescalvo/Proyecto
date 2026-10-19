@@ -21,6 +21,45 @@ static func color(c: Color, roughness := 0.9, emission := 0.0, metallic := 0.0) 
 	_materials[key] = m
 	return m
 
+## Material con textura (generadas por tools/generate_textures.py, en assets/textures/).
+## Usa proyección triplanar: la textura se pega sola sobre cualquier caja, sin coordenadas UV.
+##   meters: cuántos metros mide la textura (un ladrillo siempre mide lo mismo).
+##   world:  true para lo fijo (paredes, pisos); false para lo que se mueve (si no, la textura
+##           "resbala" sobre el objeto cuando se mueve).
+## `tint` multiplica el color: las texturas claras (pintura, revestimiento, baldosas) se tiñen.
+static func tex(name: String, tint := Color.WHITE, meters := 1.0, world := true, roughness := 0.85) -> StandardMaterial3D:
+	var key := "tex|%s|%s|%.2f|%s|%.2f" % [name, tint.to_html(), meters, world, roughness]
+	if _materials.has(key):
+		return _materials[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = tint
+	m.roughness = roughness
+	var albedo := _texture(name)
+	if albedo:
+		m.albedo_texture = albedo
+		var normal := _texture(name + "_n")
+		if normal:
+			m.normal_enabled = true
+			m.normal_texture = normal
+			m.normal_scale = 1.0
+		m.uv1_triplanar = true
+		m.uv1_world_triplanar = world
+		m.uv1_triplanar_sharpness = 4.0
+		m.uv1_scale = Vector3.ONE / meters
+		m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_materials[key] = m
+	return m
+
+static var _textures := {}
+
+static func _texture(name: String) -> Texture2D:
+	if _textures.has(name):
+		return _textures[name]
+	var path := "res://assets/textures/%s.jpg" % name
+	var t: Texture2D = load(path) if ResourceLoader.exists(path) else null
+	_textures[name] = t
+	return t
+
 ## Material que ignora la luz (para carteles, chispas, etc.).
 static func unshaded(c: Color) -> StandardMaterial3D:
 	var key := "unshaded|%s" % c.to_html()

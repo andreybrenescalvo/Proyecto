@@ -82,8 +82,8 @@ func _ready() -> void:
 	_light.spot_angle = 28.0
 	_light.spot_attenuation = 0.9
 	_light.shadow_enabled = is_local
-	_light.shadow_bias = 0.12
-	_light.shadow_normal_bias = 2.0
+	_light.shadow_bias = 0.4
+	_light.shadow_normal_bias = 3.0
 	_light.position = Vector3(0.18, -0.12, -0.25)
 	head.add_child(_light)
 	if is_local:

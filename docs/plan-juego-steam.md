@@ -207,3 +207,9 @@ El prototipo de la noche ya está en el repositorio (ver el README): la casa de 
 micrófono, las puertas que chillan, lo pesado entre dos, la policía y los "premios" de cada noche.
 La voz entre jugadores todavía va por Discord; la voz por proximidad dentro del juego es el
 siguiente paso grande.
+
+Segunda vuelta (después de la primera prueba): se arreglaron las puertas (se veían abiertas pero
+no dejaban pasar), el camión se estacionó en la calle (cerca de la casa el motor lo despertaría)
+y se pasó del estilo de cajas de colores a texturas con relieve, con referencia en las casas de
+*Thief Simulator 2*. Cada noche la casa tiene otra fachada, techo, pinturas y pisos, y el barrio
+tiene casas vecinas distintas.
