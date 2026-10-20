@@ -13,7 +13,8 @@ var _sleep_bar: ProgressBar
 var _voice_bar: ProgressBar
 var _voice_word: Label
 var _prompt: Label
-var _leave_bar: ProgressBar
+var _speed: Label
+var _speed_warn: Label
 var _feed: VBoxContainer
 var _players: Label
 var _banner: Label
@@ -145,11 +146,21 @@ func _build_center(root: Control) -> void:
 	_prompt.position = Vector2(-500, 36)
 	_prompt.size = Vector2(1000, 30)
 	root.add_child(_prompt)
-	_leave_bar = _bar(Color(1.0, 0.6, 0.2), 300, 10)
-	_leave_bar.set_anchors_preset(Control.PRESET_CENTER)
-	_leave_bar.position = Vector2(-150, 72)
-	_leave_bar.visible = false
-	root.add_child(_leave_bar)
+	# Velocímetro y aviso de "despacio" (solo cuando vas en el camión).
+	_speed = _label("", 30, Color(0.9, 0.95, 1.0))
+	_speed.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_speed.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_speed.position = Vector2(-200, -110)
+	_speed.size = Vector2(400, 40)
+	_speed.visible = false
+	root.add_child(_speed)
+	_speed_warn = _label("¡Despacio! Lo de la caja se golpea", 22, Color(1.0, 0.45, 0.3))
+	_speed_warn.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_speed_warn.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_speed_warn.position = Vector2(-300, -150)
+	_speed_warn.size = Vector2(600, 34)
+	_speed_warn.visible = false
+	root.add_child(_speed_warn)
 	_banner = _label("", 28, Color(1.0, 0.85, 0.35))
 	_banner.set_anchors_preset(Control.PRESET_CENTER)
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -238,8 +249,7 @@ func _process(delta: float) -> void:
 		_prompt.text = p.prompt
 		if not _pause.visible and not _results.visible and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 			_prompt.text = "Haz clic en el juego para controlar a tu mudancero"
-		_leave_bar.visible = p.leave_progress > 0.0
-		_leave_bar.value = p.leave_progress
+		_update_speed(p)
 	_update_clock()
 	_update_owner()
 	_update_voice()
@@ -249,6 +259,19 @@ func _process(delta: float) -> void:
 		_banner_timer -= delta
 		if _banner_timer <= 0.0:
 			_next_banner()
+
+func _update_speed(p: Player) -> void:
+	_speed.visible = p.seat >= 0 and not world.night_over()
+	_speed_warn.visible = false
+	if not _speed.visible:
+		return
+	var kmh := roundi(world.truck.speed * 3.6)
+	_speed.text = "%d km/h" % kmh
+	var fast := world.truck.speed > Config.TRUCK_SAFE_SPEED
+	_speed.add_theme_color_override("font_color", Color(1.0, 0.5, 0.35) if fast else Color(0.9, 0.95, 1.0))
+	_speed_warn.visible = fast
+	if fast:
+		_speed_warn.modulate.a = 0.6 + 0.4 * absf(sin(Time.get_ticks_msec() * 0.008))
 
 func _update_clock() -> void:
 	if not world.game.has("time_left"):
@@ -340,6 +363,7 @@ func hide_banner() -> void:
 
 const REASONS := {
 	"leave": "¡Se fueron con el camión!",
+	"cancel": "Misión cancelada",
 	"police": "¡Llegó la policía!",
 	"dawn": "Amaneció...",
 }
@@ -357,6 +381,8 @@ func _show_results(res: Dictionary) -> void:
 	_results_box.add_child(star_label)
 	var verdict := "¡Cumplieron la cuota!" if stars > 0 else "No llegaron a la cuota."
 	var lines := "Botín en el camión: $%d   (cuota $%d)   %s" % [res["value"], res["quota"], verdict]
+	if res["reason"] == "cancel":
+		lines += "\nSe fueron antes de llegar a la cuota: el encargo se cancela y se pierde todo lo cargado."
 	if int(res["fines"]) > 0:
 		lines += "\nMultas por los que se quedaron atrás: -$%d" % res["fines"]
 	lines += "\nGanancia de la noche: $%d   ·   Plata acumulada: $%d" % [res["total"], res["bank"]]

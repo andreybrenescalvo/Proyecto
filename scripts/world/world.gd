@@ -23,6 +23,7 @@ const DOORS_OPEN_AT_START := [false, false, false, true, false]
 var hud: Hud
 var env: Environment
 var moon: DirectionalLight3D
+var truck: Truck
 var truck_area: Area3D
 var bedroom_lamp: OmniLight3D
 var homeowner: HouseOwner
@@ -44,6 +45,8 @@ var local_player: Player
 var is_server := false
 var test_reports := {}      # pruebas automáticas: peer -> informe
 var debug_noises: Array = []  # (anfitrión) últimos ruidos que oyó el dueño, para F3
+var cargo_hits := 0         # (anfitrión) golpes de lo que va en la caja (para las pruebas)
+var jolts: Array[float] = []  # (anfitrión) fuerza de los sacudones de esta noche (para las pruebas)
 
 # --- solo en el anfitrión ---
 var _rng := RandomNumberGenerator.new()
@@ -61,6 +64,7 @@ var _scrape_timers := {}    # entidad -> segundos hasta el próximo chirrido de 
 var _impact_times := {}     # entidad -> último golpe (para no repetir el ruido)
 var _loaded := {}           # entidad que está en el camión -> peer al que se le acreditó
 var _eject_timers := {}     # peer -> segundos que le quedan "a salvo" después de que lo echaron
+var _engine_timer := 0.0
 
 # --- en cada computadora ---
 var _siren: AudioStreamPlayer3D
@@ -72,6 +76,13 @@ func _ready() -> void:
 	house_refs = refs
 	env = refs["env"]
 	moon = refs["moon"]
+	truck = refs["truck"]
+	truck.setup(is_server)
+	for x: float in HouseBuilder.SPEED_BUMPS_X:
+		var size := HouseBuilder.SPEED_BUMP_SIZE
+		truck.bumps.append(Rect2(x - size.x * 0.5, 21.0 - size.z * 0.5, size.x, size.z))
+	if is_server:
+		truck.jolted.connect(_srv_on_truck_jolt)
 	truck_area = refs["truck_area"]
 	bedroom_lamp = refs["bedroom_lamp"]
 	boards = refs["boards"]
@@ -150,13 +161,16 @@ func night_over() -> bool:
 func police_coming() -> bool:
 	return float(game.get("police", -1.0)) >= 0.0
 
-## Cuántos jugadores no están junto al camión (para avisar antes de irse).
+## Cuántos jugadores no se subieron al camión (para avisar antes de arrancar).
 func players_away_from_truck() -> int:
 	var n := 0
 	for peer: int in players:
-		if not HouseBuilder.at_truck(player_position(peer)):
+		if not is_seated(peer):
 			n += 1
 	return n
+
+func is_seated(peer: int) -> bool:
+	return truck.seats.has(peer)
 
 ## ¿No hay nada entre a y b? Con `furniture` también cuentan los muebles (para la vista);
 ## sin eso, solo paredes y puertas (para buscar caminos).
@@ -185,6 +199,7 @@ func debug_text() -> String:
 			% [HouseOwner.State.keys()[homeowner.state], homeowner.alert, homeowner.sleep_mult, homeowner.wakes]
 	if local_player:
 		t += "pos %s   voz %.2f (%s)\n" % [local_player.global_position.snapped(Vector3(0.1, 0.1, 0.1)), Voice.level, Voice.level_word(Voice.level)]
+	t += "camión %.1f km/h   conductor %s   golpes en la caja %d\n" % [truck.speed * 3.6, _name(truck.driver) if truck.driver != 0 else "-", cargo_hits]
 	for n: String in debug_noises:
 		t += n + "\n"
 	return t
@@ -265,6 +280,10 @@ func rpc_teleport(pos: Vector3) -> void:
 
 func _on_peer_disconnected(peer: int) -> void:
 	_ready_peers.erase(peer)
+	if truck.seats.has(peer):
+		var seats: Dictionary = truck.seats.duplicate()
+		seats.erase(peer)
+		_send_all(&"rpc_seats", [seats])
 	for e: Entity in entities.values():
 		if e.holders.has(peer):
 			e.holders.erase(peer)
@@ -314,6 +333,8 @@ func _snapshot() -> Dictionary:
 		"players": pl,
 		"doors": door_states,
 		"owner": homeowner.get_net_state() + [homeowner.sleep_mult],
+		"truck": truck.get_net_state(),
+		"seats": truck.seats.duplicate(),
 	}
 
 func _apply_snapshot(snap: Dictionary) -> void:
@@ -334,6 +355,11 @@ func _apply_snapshot(snap: Dictionary) -> void:
 	homeowner.global_position = o[0]
 	homeowner.set_net_state(o[0], o[1], o[2], o[3])
 	homeowner.sleep_mult = o[4]
+	var t: Array = snap["truck"]
+	truck.park(t[0], 0.0)
+	truck.global_transform = Transform3D(Basis(t[1] as Quaternion), t[0])
+	truck.set_net_state(t[0], t[1], t[2])
+	rpc_seats(snap["seats"])
 	game_changed.emit()
 	if results.is_empty():
 		night_started.emit()
@@ -571,22 +597,79 @@ func rpc_door(id: int, open: bool) -> void:
 	d.set_open(open)
 	Sfx.play_at("door", d.center() + Vector3(0, 1.8, 0), linear_to_db(0.3 + d.creak), 1.25 - d.creak * 0.5)
 
-func request_leave() -> void:
+## Manejar, subirse o bajarse del camión. `action`: "truck_drive", "truck_ride" o "exit".
+func request_seat(action: String) -> void:
 	if is_server:
-		_srv_leave(1)
+		srv_seat(1, action)
 	else:
-		rpc_req_leave.rpc_id(1)
+		rpc_req_seat.rpc_id(1, action)
 
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_req_leave() -> void:
+func rpc_req_seat(action: String) -> void:
 	if is_server:
-		_srv_leave(multiplayer.get_remote_sender_id())
+		srv_seat(multiplayer.get_remote_sender_id(), action)
 
-func _srv_leave(peer: int) -> void:
-	if not HouseBuilder.at_truck(player_position(peer)):
-		return
-	_srv_sound("honk", HouseBuilder.TRUCK_POS + Vector3(-3.0, 1.4, 0), 4.0)
-	_srv_end_night("leave")
+func srv_seat(peer: int, action: String) -> bool:
+	if not players.has(peer) or night_over():
+		return false
+	var seats: Dictionary = truck.seats.duplicate()
+	if action == "exit":
+		if not seats.has(peer) or truck.speed > Config.TRUCK_EXIT_SPEED:
+			return false
+		seats.erase(peer)
+	else:
+		if seats.has(peer) or (players[peer] as Player).ejected:
+			return false
+		if player_position(peer).distance_to(truck.door_position(action)) > Config.INTERACT_RANGE + 1.5:
+			return false
+		var seat := 0 if action == "truck_drive" and truck.driver == 0 else truck.free_seat()
+		if seat < 0:
+			return false
+		seats[peer] = seat
+		# Lo que tenía en la mano se queda donde está.
+		for e: Entity in entities.values():
+			if e.holders.has(peer):
+				e.holders.erase(peer)
+				_srv_carriers_changed(e)
+	_send_all(&"rpc_seats", [seats])
+	_srv_sound("thud", truck.global_position + Vector3(0, 1.2, 0), -4.0, 1.4)
+	if truck.driver != 0 and action == "truck_drive":
+		_broadcast_message("%s se subió a manejar. Súbanse todos antes de arrancar." % _name(peer))
+	return true
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_seats(seats: Dictionary) -> void:
+	truck.set_seats(seats)
+	for peer: int in players:
+		(players[peer] as Player).set_seat(int(seats.get(peer, -1)))
+
+## El conductor manda acelerador, volante y freno de mano.
+func send_drive_input(throttle: float, steer: float, handbrake: bool) -> void:
+	if is_server:
+		_srv_drive_input(1, throttle, steer, handbrake)
+	else:
+		rpc_drive_input.rpc_id(1, throttle, steer, handbrake)
+
+@rpc("any_peer", "call_remote", "unreliable_ordered")
+func rpc_drive_input(throttle: float, steer: float, handbrake: bool) -> void:
+	if is_server:
+		_srv_drive_input(multiplayer.get_remote_sender_id(), throttle, steer, handbrake)
+
+func _srv_drive_input(peer: int, throttle: float, steer: float, handbrake: bool) -> void:
+	if truck.driver == peer and not night_over():
+		truck.set_input(throttle, steer, handbrake)
+
+@rpc("authority", "call_remote", "unreliable_ordered")
+func rpc_truck(pos: Vector3, rot: Quaternion, steer: float) -> void:
+	truck.set_net_state(pos, rot, steer)
+
+## Lo que va en la caja viaja pegado al camión: se manda su posición relativa al camión.
+@rpc("authority", "call_remote", "unreliable_ordered")
+func rpc_cargo(ids: PackedInt32Array, positions: PackedVector3Array, rots: PackedFloat32Array) -> void:
+	for i in ids.size():
+		var e: Entity = entities.get(ids[i])
+		if e:
+			e.set_net_local(positions[i], Quaternion(rots[i * 4], rots[i * 4 + 1], rots[i * 4 + 2], rots[i * 4 + 3]), truck)
 
 # ================================================================ ruido
 
@@ -603,6 +686,8 @@ func _srv_noise(pos: Vector3, loudness: float, weight: float, peer: int, who: St
 func _srv_on_impact(e: Entity, speed: float) -> void:
 	if _time < e.quiet_until or not entities.has(e.entity_id):
 		return
+	if _loaded.has(e.entity_id):
+		cargo_hits += 1
 	if e.is_fragile() and speed > float(e.data.get("break", 5.0)):
 		_srv_break(e)
 		return
@@ -761,6 +846,10 @@ func _srv_new_night(night: int, bank: int) -> void:
 	debug_noises.clear()
 	for i in doors.size():
 		doors[i].set_open(DOORS_OPEN_AT_START[i])
+	truck.park(HouseBuilder.TRUCK_POS, HouseBuilder.TRUCK_ROT)
+	rpc_seats({})
+	cargo_hits = 0
+	jolts.clear()
 	homeowner.reset()
 	# Cada noche Don Ramón tiene el sueño un poco más liviano.
 	homeowner.sleep_mult = 1.0 + 0.12 * (night - 1)
@@ -840,23 +929,30 @@ func _srv_end_night(reason: String) -> void:
 	var quota := int(game["quota"])
 	var rows := []
 	var detained := 0
+	# Si se van sin llegar a la cuota, el encargo se cancela y se pierde todo lo cargado.
+	var canceled := reason == "leave" and value < quota
+	if canceled:
+		reason = "cancel"
 	for peer: int in players:
 		var st: Dictionary = _stats.get(peer, _empty_stats())
-		var left_behind := not HouseBuilder.at_truck(player_position(peer))
+		var left_behind := not is_seated(peer)
+		if reason != "leave" and reason != "cancel":
+			left_behind = left_behind and not HouseBuilder.at_truck(player_position(peer))
 		if left_behind:
 			detained += 1
 		rows.append({"name": _name(peer), "noise": roundi(float(st["noise"])), "broken": st["broken"],
 				"loot": st["loot"], "caught": st["caught"], "wakes": st["wakes"], "left": left_behind})
-	var fines := detained * Config.ARREST_FINE
-	var total := maxi(value - fines, 0)
+	var fines := 0 if canceled else detained * Config.ARREST_FINE
+	var total := 0 if canceled else maxi(value - fines, 0)
 	game["over"] = true
 	game["bank"] = int(game.get("bank", 0)) + total
+	truck.locked = true
 	results = {
 		"reason": reason,
 		"night": game["night"],
 		"value": value,
 		"quota": quota,
-		"stars": Config.stars(value, quota),
+		"stars": 0 if canceled else Config.stars(value, quota),
 		"fines": fines,
 		"total": total,
 		"bank": game["bank"],
@@ -949,6 +1045,7 @@ func _srv_tick(delta: float) -> void:
 		if _truck_timer <= 0.0:
 			_truck_timer = 0.25
 			_srv_check_truck()
+		_srv_truck_tick(delta)
 		# Reloj de la noche y policía.
 		game["time_left"] = float(game["time_left"]) - delta
 		if float(game["time_left"]) <= 0.0:
@@ -971,6 +1068,38 @@ func _srv_tick(delta: float) -> void:
 		_sync_timer = SYNC_INTERVAL
 		_srv_sync()
 
+## El motor hace ruido (Don Ramón lo puede oír), lo de la caja no se duerme mientras el camión
+## anda, y si se alejan lo suficiente, se escaparon.
+## Un sacudón del camión golpea todo lo que va suelto en la caja (y lo frágil se puede romper).
+## La culpa es del que maneja.
+func _srv_on_truck_jolt(strength: float) -> void:
+	if night_over():
+		return
+	jolts.append(snappedf(strength, 0.1))
+	for id: int in _loaded.keys():
+		var e: Entity = entities.get(id)
+		if e and e.holders.is_empty():
+			if truck.driver != 0:
+				e.last_holder = truck.driver
+			_srv_on_impact(e, strength)
+
+func _srv_truck_tick(delta: float) -> void:
+	if truck.driver == 0:
+		return
+	_engine_timer -= delta
+	if _engine_timer <= 0.0:
+		_engine_timer = 0.5
+		var loud: float = Config.NOISE_ENGINE[0] + Config.NOISE_ENGINE[1] * truck.speed
+		_srv_noise(truck.global_position + Vector3(0, 1.0, 0), loud, Config.NOISE_ENGINE_WEIGHT, truck.driver, "motor del camión")
+	if truck.is_moving():
+		for id: int in _loaded:
+			var e: Entity = entities.get(id)
+			if e:
+				e.sleeping = false
+	if truck.global_position.distance_to(HouseBuilder.TRUCK_POS) > Config.ESCAPE_DISTANCE and not night_over():
+		_broadcast_message("¡Salieron del barrio!", true)
+		_srv_end_night("leave")
+
 func _srv_sync() -> void:
 	if _ready_peers.size() <= 1:
 		for e: Entity in entities.values():
@@ -979,7 +1108,19 @@ func _srv_sync() -> void:
 	var ids := PackedInt32Array()
 	var positions := PackedVector3Array()
 	var rots := PackedFloat32Array()
+	var inv := truck.global_transform.affine_inverse()
+	var cargo_ids := PackedInt32Array()
+	var cargo_pos := PackedVector3Array()
+	var cargo_rots := PackedFloat32Array()
 	for e: Entity in entities.values():
+		if _loaded.has(e.entity_id) and e.holders.is_empty():
+			var local := inv * e.global_transform
+			var lq := local.basis.get_rotation_quaternion()
+			cargo_ids.append(e.entity_id)
+			cargo_pos.append(local.origin)
+			cargo_rots.append_array([lq.x, lq.y, lq.z, lq.w])
+			e.mark_sent()
+			continue
 		if e.needs_sync(SYNC_INTERVAL):
 			var q := e.global_transform.basis.get_rotation_quaternion()
 			ids.append(e.entity_id)
@@ -994,6 +1135,10 @@ func _srv_sync() -> void:
 				rots = PackedFloat32Array()
 	if ids.size() > 0:
 		_send_clients(&"rpc_bodies", [ids, positions, rots])
+	if cargo_ids.size() > 0:
+		_send_clients(&"rpc_cargo", [cargo_ids, cargo_pos, cargo_rots])
+	var ts := truck.get_net_state()
+	_send_clients(&"rpc_truck", [ts[0], ts[1], ts[2]])
 	var o := homeowner.get_net_state()
 	_send_clients(&"rpc_owner", [o[0], o[1], o[2], o[3]])
 	var states := []
@@ -1038,7 +1183,8 @@ func send_test_report() -> void:
 	var door_bits := 0
 	for d in doors:
 		door_bits |= (1 << d.door_id) if d.is_open else 0
-	rpc_test_report.rpc_id(1, [entities.size(), door_bits, int(homeowner.state), not results.is_empty(), int(game.get("night", 0))])
+	rpc_test_report.rpc_id(1, [entities.size(), door_bits, int(homeowner.state), not results.is_empty(), int(game.get("night", 0)),
+			truck.global_position, truck.seats.duplicate()])
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_test_report(report: Array) -> void:

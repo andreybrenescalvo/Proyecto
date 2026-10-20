@@ -97,6 +97,9 @@ const EJECT_POS := Vector3(-1.5, 0.2, 10.5)
 const SPAWNS := [Vector3(-6.8, 0.1, 16.2), Vector3(-5.4, 0.1, 16.2), Vector3(-6.8, 0.1, 17.2), Vector3(-5.4, 0.1, 17.2)]
 ## Zona del camión: quien está acá cuando se van, se va con el camión.
 const TRUCK_ZONE := Rect2(-15.5, 15.4, 10.5, 6.0)
+## Lomos de burro de la calle (en X), y su tamaño: largo, alto y ancho (de vereda a vereda).
+const SPEED_BUMPS_X := [-28.0, -44.0]
+const SPEED_BUMP_SIZE := Vector3(1.5, 0.14, 7.0)
 const HOUSE_RECT := Rect2(-8.0, -6.0, 16.0, 12.0)
 
 static func in_house(p: Vector3) -> bool:
@@ -357,10 +360,63 @@ static func _grounds(root: Node3D) -> void:
 		_box(root, Vector3(1.8, 0.025, 0.14), Vector3(-63.0 + i * 6.0, 0.016, 21.0), line)
 	for side in [-1.0, 1.0]:
 		_box(root, Vector3(140, 0.05, 0.18), Vector3(0, 0.025, 21.0 + side * 3.45), _tex("concrete", Color(0.8, 0.8, 0.8), 1.0))
-	# Bordes invisibles del mundo.
-	for d in [[Vector3(80, 4, 1), Vector3(0, 2, 27.0)], [Vector3(1, 4, 60), Vector3(-34.0, 2, 6)],
-			[Vector3(1, 4, 60), Vector3(34.0, 2, 6)], [Vector3(80, 4, 1), Vector3(0, 2, -14.0)]]:
+	# Lomos de burro antes de la salida: si se pasan rápido, lo de la caja salta y se golpea.
+	for x: float in SPEED_BUMPS_X:
+		_speed_bump(root, Vector3(x, 0.0, 21.0))
+	# Bordes invisibles del mundo. Al oeste, la calle sigue: por ahí se escapa el camión.
+	for d in [[Vector3(80, 4, 1), Vector3(0, 2, 27.0)], [Vector3(1, 4, 29.4), Vector3(-34.0, 2, 0.7)],
+			[Vector3(1, 4, 60), Vector3(34.0, 2, 6)], [Vector3(80, 4, 1), Vector3(0, 2, -14.0)],
+			[Vector3(36, 4, 1), Vector3(-52.0, 2, 15.4)], [Vector3(36, 4, 1), Vector3(-52.0, 2, 26.6)],
+			[Vector3(1, 4, 12), Vector3(-70.0, 2, 21.0)]]:
 		_collider(root, d[0], d[1])
+	# Cartel de la salida del barrio.
+	var post := _tex("metal", Color(0.3, 0.3, 0.32), 1.0, 0.5)
+	_solid(root, Vector3(0.1, 2.6, 0.1), Vector3(-38.0, 1.3, 16.2), post)
+	_box(root, Vector3(0.05, 0.6, 1.6), Vector3(-38.0, 2.5, 16.2), Mats.color(Color(0.1, 0.35, 0.2), 0.6))
+	var exit_sign := Label3D.new()
+	exit_sign.text = "← Salida del barrio"
+	exit_sign.font_size = 40
+	exit_sign.pixel_size = 0.005
+	exit_sign.position = Vector3(-37.96, 2.5, 16.2)
+	exit_sign.rotation_degrees.y = 90.0
+	root.add_child(exit_sign)
+
+## Lomo de burro: un triángulo bajo y ancho de vereda a vereda, pintado de amarillo y negro.
+static func _speed_bump(root: Node3D, p: Vector3) -> void:
+	var prism := PrismMesh.new()
+	prism.size = Vector3(SPEED_BUMP_SIZE.x, SPEED_BUMP_SIZE.y, SPEED_BUMP_SIZE.z)
+	var body := StaticBody3D.new()
+	body.collision_layer = Config.L_WORLD
+	body.collision_mask = 0
+	body.position = p + Vector3(0, SPEED_BUMP_SIZE.y * 0.5, 0)
+	root.add_child(body)
+	var shape := CollisionShape3D.new()
+	shape.shape = prism.create_convex_shape()
+	body.add_child(shape)
+	var mi := MeshInstance3D.new()
+	mi.mesh = prism
+	mi.material_override = _tex("asphalt", Color(0.75, 0.75, 0.75), 2.0, 0.9)
+	body.add_child(mi)
+	# Franjas amarillas.
+	var paint := Mats.color(Color(0.95, 0.78, 0.15), 0.7)
+	var n := 7
+	for i in n:
+		var z := -SPEED_BUMP_SIZE.z * 0.5 + (i + 0.5) * SPEED_BUMP_SIZE.z / n
+		var stripe := MeshInstance3D.new()
+		var sm := PrismMesh.new()
+		sm.size = Vector3(SPEED_BUMP_SIZE.x + 0.02, SPEED_BUMP_SIZE.y + 0.01, SPEED_BUMP_SIZE.z / n * 0.5)
+		stripe.mesh = sm
+		stripe.material_override = paint
+		stripe.position = Vector3(0, 0.003, z)
+		body.add_child(stripe)
+	var sign := Label3D.new()
+	sign.text = "LOMO DE BURRO"
+	sign.font_size = 48
+	sign.pixel_size = 0.006
+	sign.modulate = Color(0.95, 0.8, 0.2, 0.9)
+	sign.position = Vector3(5.0, 0.03, 0)
+	sign.rotation_degrees = Vector3(-90, 90, 0)   # se lee viniendo desde la casa (hacia el oeste)
+	body.add_child(sign)
 
 ## Árbol: tronco y copa en dos o tres bloques.
 static func _tree(root: Node3D, p: Vector3, big := 1.0) -> void:
@@ -749,85 +805,13 @@ static func _boards(root: Node3D) -> Array:
 
 # ---------------------------------------------------------------- el camión
 
-## El camión de mudanzas, estacionado en la calle. Se arma en coordenadas propias (largo a lo
-## largo de Z, la puerta de carga atrás en -Z) y después se gira y se ubica.
+## El camión de mudanzas (ver truck.gd), estacionado en la calle.
 static func _truck(root: Node3D, refs: Dictionary) -> void:
-	var truck := Node3D.new()
-	truck.name = "Truck"
-	truck.position = TRUCK_POS
-	truck.rotation_degrees.y = TRUCK_ROT
+	var truck := Truck.new()
 	root.add_child(truck)
-	var body := Mats.tex("metal", Color(0.95, 0.94, 0.9), 2.0, true, 0.45)
-	var stripe := Mats.color(Color(0.95, 0.5, 0.12), 0.5)
-	var dark := Mats.tex("metal", Color(0.2, 0.2, 0.22), 1.0, true, 0.6)
-	# Caja de carga: piso a 0,55 m, abierta atrás.
-	_solid(truck, Vector3(2.2, 0.1, 4.2), Vector3(0, 0.5, 0), _tex("wood_floor", Color(0.8, 0.75, 0.7), 1.2))
-	_solid(truck, Vector3(2.1, 0.4, 6.0), Vector3(0, 0.25, 0.9), dark)
-	for side in [-1.0, 1.0]:
-		_solid(truck, Vector3(0.08, 2.05, 4.2), Vector3(side * 1.1, 1.575, 0), body)
-		_box(truck, Vector3(0.1, 0.3, 4.2), Vector3(side * 1.11, 1.2, 0), stripe)
-	_solid(truck, Vector3(2.2, 2.05, 0.08), Vector3(0, 1.575, 2.1), body)
-	_solid(truck, Vector3(2.3, 0.08, 4.3), Vector3(0, 2.64, 0), body)
-	# Rampa desde la calle hasta el piso de la caja.
-	var ramp := _solid(truck, Vector3(2.0, 0.08, 1.52), Vector3(0, 0.26, -2.8), _tex("metal", Color(0.7, 0.7, 0.72), 0.5, 0.5))
-	ramp.rotation_degrees.x = -21.4
-	# Cabina.
-	_solid(truck, Vector3(2.1, 1.6, 1.8), Vector3(0, 1.25, 3.0), body)
-	_box(truck, Vector3(1.9, 0.6, 0.05), Vector3(0, 1.65, 3.91), Mats.color(Color(0.2, 0.25, 0.35), 0.1, 0.2))
-	for side in [-1.0, 1.0]:
-		var head := Mats.add_box(truck, Vector3(0.3, 0.15, 0.05), Vector3(side * 0.75, 0.85, 3.91), Color(1, 0.95, 0.75))
-		head.material_override = Mats.color(Color(1, 0.95, 0.75), 0.5, 1.5)
-		var tail := Mats.add_box(truck, Vector3(0.12, 0.2, 0.05), Vector3(side * 1.0, 0.75, -2.12), Color(1, 0.1, 0.1))
-		tail.material_override = Mats.color(Color(1, 0.1, 0.1), 0.5, 2.5)
-	for z in [-1.3, 1.5, 3.2]:
-		for side in [-1.0, 1.0]:
-			Mats.add_cylinder(truck, 0.38, 0.25, Vector3(side * 1.0, 0.38, z), Color(0.08, 0.08, 0.08), Vector3(0, 0, 90), 12)
-	# Puerta del conductor (da a la vereda): mantener E para irse.
-	var door := Mats.add_solid_box(truck, Vector3(0.06, 0.9, 0.8), Vector3(-1.08, 1.35, 3.0), Color.WHITE)
-	(door.get_child(1) as MeshInstance3D).material_override = Mats.tex("metal", Color(0.85, 0.84, 0.8), 2.0, true, 0.45)
-	door.set_meta("interact", "truck_leave")
-	Mats.add_box(door, Vector3(0.04, 0.4, 0.7), Vector3(-0.03, 0.2, 0), Color(0.2, 0.25, 0.35))
-	# Letreros.
-	for side in [-1.0, 1.0]:
-		var label := Label3D.new()
-		label.text = "MUDANZAS TRUCHAS\n¡Nos llevamos todo!"
-		label.font_size = 72
-		label.pixel_size = 0.005
-		label.outline_size = 12
-		label.modulate = Color(0.95, 0.45, 0.1)
-		label.outline_modulate = Color(0.15, 0.1, 0.05)
-		label.position = Vector3(side * 1.17, 1.85, 0)
-		label.rotation_degrees.y = 90.0 * side
-		truck.add_child(label)
-	var back := Label3D.new()
-	back.text = "MUDANZAS TRUCHAS"
-	back.font_size = 48
-	back.pixel_size = 0.005
-	back.outline_size = 10
-	back.modulate = Color(0.95, 0.45, 0.1)
-	back.position = Vector3(0, 2.45, -2.14)
-	back.rotation_degrees.y = 180.0
-	truck.add_child(back)
-	# Luz adentro de la caja (para ver lo que se cargó).
-	var inside := OmniLight3D.new()
-	inside.light_color = Color(1.0, 0.85, 0.6)
-	inside.light_energy = 0.8
-	inside.omni_range = 4.5
-	inside.position = Vector3(0, 2.4, 0.4)
-	truck.add_child(inside)
-	# Lo que toca esta zona cuenta como cargado.
-	var area := Area3D.new()
-	area.collision_layer = 0
-	area.collision_mask = Config.L_SMALL | Config.L_BIG
-	area.monitorable = false
-	area.position = Vector3(0, 1.6, 0)
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(2.1, 2.1, 4.1)
-	shape.shape = box
-	area.add_child(shape)
-	truck.add_child(area)
-	refs["truck_area"] = area
+	truck.park(TRUCK_POS, TRUCK_ROT)
+	refs["truck"] = truck
+	refs["truck_area"] = truck.area
 
 # ---------------------------------------------------------------- el barrio
 

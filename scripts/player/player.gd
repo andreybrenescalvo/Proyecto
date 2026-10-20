@@ -2,13 +2,14 @@ class_name Player
 extends CharacterBody3D
 ## Ladrón (perdón, "mudancero") en primera persona.
 ## Cada computadora mueve su propio jugador y le pide al anfitrión todo lo demás
-## (agarrar cosas, abrir puertas, irse con el camión).
+## (agarrar cosas, abrir puertas, subirse al camión y manejarlo).
 
 # Lo que se manda por red de cada jugador (y lo que mira el dueño para verlos u oírlos).
 const F_CROUCH := 1
 const F_LIGHT := 2
 const F_MOVING := 4
 const F_SPRINT := 8
+const F_SEATED := 16      # va arriba del camión (no se ve ni hace ruido de pasos)
 
 const JUMP := 4.6
 const GRAVITY := 14.0
@@ -35,7 +36,7 @@ var voice := 0.0          # nivel de voz 0..1 (en los remotos, lo que llega por 
 var ejected := false      # (anfitrión) lo acaban de echar: el dueño no lo persigue por un rato
 var prompt := ""          # texto de ayuda que muestra el HUD
 var look := {}            # lo que el jugador está mirando (resultado del rayo)
-var leave_progress := 0.0 # 0..1 mientras mantiene E en la cabina del camión
+var seat := -1            # asiento en el camión (-1 = a pie, 0 = manejando)
 
 var head: Node3D
 var camera: Camera3D
@@ -216,6 +217,9 @@ func carry_factor() -> float:
 
 func _local_physics(delta: float) -> void:
 	stun = maxf(stun - delta, 0.0)
+	if seat >= 0:
+		_seated_physics()
+		return
 	rotation.y = yaw
 	head.rotation.x = pitch
 	if not is_on_floor():
@@ -249,6 +253,56 @@ func _local_physics(delta: float) -> void:
 	if _send_timer <= 0.0:
 		_send_timer = 0.05
 		world.send_player_state(global_position, yaw, pitch, net_flags, voice)
+
+## Arriba del camión: el cuerpo va con el asiento y, si maneja, manda acelerador y volante.
+func _seated_physics() -> void:
+	velocity = Vector3.ZERO
+	global_position = world.truck.seat_position(seat)
+	net_flags = F_SEATED | (F_LIGHT if flashlight_on else 0)
+	voice = Voice.level
+	# Si no tiene el control (menú abierto), no manda nada: al rato el camión suelta todo solo.
+	if can_control():
+		if seat == 0:
+			world.send_drive_input(Input.get_axis("move_back", "move_forward"),
+					Input.get_axis("move_right", "move_left"), Input.is_action_pressed("jump"))
+		if Input.is_action_just_pressed("interact"):
+			world.request_seat("exit")
+	_update_seated_prompt()
+	_send_timer -= get_physics_process_delta_time()
+	if _send_timer <= 0.0:
+		_send_timer = 0.05
+		world.send_player_state(global_position, yaw, pitch, net_flags, voice)
+
+func _update_seated_prompt() -> void:
+	if world.truck.speed > Config.TRUCK_EXIT_SPEED:
+		prompt = "W/S acelerar y frenar · A/D doblar · Espacio freno de mano" if seat == 0 else "Agárrense..."
+	elif seat == 0:
+		prompt = "W/S acelerar y frenar · A/D doblar · Espacio freno de mano · E bajarse"
+		var missing := world.players_away_from_truck()
+		if missing > 0:
+			prompt += "   ·   faltan %d por subir" % missing
+	else:
+		prompt = "E: bajarse"
+
+## El anfitrión cambió quién va en el camión.
+func set_seat(new_seat: int) -> void:
+	if new_seat == seat:
+		return
+	var old := seat
+	seat = new_seat
+	var seated := seat >= 0
+	if is_local:
+		collision_layer = 0 if seated else Config.L_PLAYER
+		collision_mask = 0 if seated else (Config.L_WORLD | Config.L_BIG | Config.L_PLAYER | Config.L_DOOR | Config.L_OWNER)
+		if seated:
+			holding_id = 0
+			world.truck.camera.make_current()
+		else:
+			camera.make_current()
+			if old >= 0:
+				teleport(world.truck.exit_position(old))
+	else:
+		visible = not seated
 
 func _process(delta: float) -> void:
 	if not is_local:
@@ -341,7 +395,12 @@ func _update_look() -> void:
 	if not hit.is_empty():
 		var col: Object = hit["collider"]
 		look = {"pos": hit["position"], "kind": "surface"}
-		if col is Entity:
+		if col is Truck:
+			var action := (col as Truck).button_at(hit["shape"])
+			if action != "":
+				look["kind"] = "button"
+				look["button"] = action
+		elif col is Entity:
 			look["kind"] = "entity"
 			look["entity"] = col
 		elif col.has_meta("door"):
@@ -382,13 +441,13 @@ func _update_prompt() -> void:
 				if d.creak >= 0.5:
 					prompt += "   ·   ¡chilla!"
 		"button":
-			if look["button"] == "truck_leave":
-				prompt = "Mantén E: irse con el camión (termina la noche)"
-				var missing := world.players_away_from_truck()
-				if missing > 0:
-					prompt += "   ·   ¡faltan %d!" % missing
+			match look["button"]:
+				"truck_drive":
+					prompt = "E: manejar el camión" if world.truck.driver == 0 else "E: subirse al camión"
+				"truck_ride":
+					prompt = "E: subirse al camión"
 
-func _use_hands(delta: float) -> void:
+func _use_hands(_delta: float) -> void:
 	var cam := camera.global_transform
 	if holding_id != 0:
 		var e: Entity = world.get_entity(holding_id)
@@ -404,19 +463,13 @@ func _use_hands(delta: float) -> void:
 		elif can_control() and Input.is_action_just_pressed("interact"):
 			world.request_release(holding_id, Vector3.ZERO)
 			holding_id = 0
-		leave_progress = 0.0
 		return
 	var kind: String = look.get("kind", "")
-	if kind == "button" and look["button"] == "truck_leave" and can_control() and Input.is_action_pressed("interact"):
-		leave_progress += delta / Config.LEAVE_HOLD_TIME
-		if leave_progress >= 1.0:
-			leave_progress = 0.0
-			world.request_leave()
-	else:
-		leave_progress = 0.0
 	if not can_control() or not Input.is_action_just_pressed("interact"):
 		return
-	if kind == "entity":
+	if kind == "button":
+		world.request_seat(look["button"])
+	elif kind == "entity":
 		world.request_grab((look["entity"] as Entity).entity_id)
 	elif kind == "door":
 		world.request_door(look["door"])

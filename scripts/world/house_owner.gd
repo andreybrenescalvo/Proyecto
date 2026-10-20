@@ -447,6 +447,9 @@ func peer_eye(peer: int) -> Vector3:
 ## ¿Ve a este jugador? Cono de visión, distancia (menos si está agachado, más si tiene la linterna
 ## prendida) y nada en el medio (paredes, puertas o muebles).
 func _can_see(target_eye: Vector3, eye: Vector3, p: Player) -> bool:
+	# Arriba del camión no lo ve (va metido en la cabina o en la caja).
+	if p.seat >= 0:
+		return false
 	var to := target_eye - eye
 	var d := to.length()
 	var flags := p.net_flags

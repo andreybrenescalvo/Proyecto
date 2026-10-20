@@ -36,6 +36,8 @@ var _skip_impact := 0
 # --- en los clientes ---
 var _net_pos := Vector3.ZERO
 var _net_rot := Quaternion.IDENTITY
+var _ride: Node3D = null              # si va en la caja del camión: la posición llega relativa a él
+var _net_local := Transform3D.IDENTITY
 
 static func create(id: int, new_kind: String, new_info: Dictionary, is_server: bool) -> Entity:
 	var e := Entity.new()
@@ -254,10 +256,24 @@ func _build_visual() -> void:
 func set_net_transform(pos: Vector3, rot: Quaternion) -> void:
 	_net_pos = pos
 	_net_rot = rot
+	_ride = null
+
+## Llega una posición relativa al camión (va en la caja): así viaja pegado a él aunque ande rápido.
+func set_net_local(pos: Vector3, rot: Quaternion, vehicle: Node3D) -> void:
+	_net_local = Transform3D(Basis(rot), pos)
+	_ride = vehicle
 
 func _physics_process(delta: float) -> void:
 	if server_side:
 		_server_impacts()
+		return
+	if _ride != null and is_instance_valid(_ride):
+		var target := _ride.global_transform * _net_local
+		_net_pos = target.origin
+		_net_rot = target.basis.get_rotation_quaternion()
+		var k := 1.0 - exp(-30.0 * delta)
+		global_transform = Transform3D(Basis(global_transform.basis.get_rotation_quaternion().slerp(_net_rot, k)),
+				global_position.lerp(_net_pos, k))
 		return
 	var t := 1.0 - exp(-18.0 * delta)
 	var current := global_transform

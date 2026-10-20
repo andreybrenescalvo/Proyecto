@@ -21,6 +21,7 @@ func _ready() -> void:
 	streams["shout"] = _make(1.0, _gen_shout)
 	streams["siren"] = _make(2.0, _gen_siren, true)
 	streams["honk"] = _make(0.6, _gen_honk)
+	streams["engine"] = _make(1.0, _gen_engine, true)
 	streams["coin"] = _make(0.35, _gen_coin)
 	streams["click"] = _make(0.06, _gen_click)
 
@@ -187,6 +188,13 @@ func _gen_siren(t: float, _dur: float, st: Dictionary) -> float:
 func _gen_honk(t: float, dur: float, _st: Dictionary) -> float:
 	var v := signf(sin(TAU * 330.0 * t)) * 0.3 + signf(sin(TAU * 415.0 * t)) * 0.3
 	return v * minf(t * 40.0, 1.0) * clampf((dur - t) * 20.0, 0.0, 1.0) * 0.6
+
+## Motor diésel en marcha: pulsos graves (la velocidad la pone el pitch del reproductor).
+func _gen_engine(t: float, _dur: float, st: Dictionary) -> float:
+	var firing := maxf(sin(TAU * 32.0 * t), 0.0)
+	var low := _lowpass(st, "lp", randf_range(-1.0, 1.0), 0.06)
+	var hum := sin(TAU * 64.0 * t) * 0.3 + sin(TAU * 96.0 * t) * 0.12
+	return (firing * 0.5 + hum) * (0.7 + low * 2.0) * 0.6
 
 func _gen_coin(t: float, _dur: float, _st: Dictionary) -> float:
 	var f := 1320.0 if t < 0.08 else 1760.0

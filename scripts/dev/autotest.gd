@@ -6,7 +6,7 @@ extends Node
 ##
 ## El anfitrión recorre las mecánicas principales (el dueño oye la voz y las puertas, cargar el
 ## camión, romper algo frágil, cargar el sillón entre dos, despertarlo, que persiga y eche a
-## alguien, irse, otra noche) y compara lo que ve cada cliente. Imprime "AUTOTEST OK" o
+## alguien, manejar el camión y escapar, otra noche) y compara lo que ve cada cliente. Imprime "AUTOTEST OK" o
 ## "AUTOTEST FALLÓ" y cierra el juego.
 
 var world: World
@@ -179,16 +179,78 @@ func _run_host() -> void:
 	if int(world._stats[1]["caught"]) > 0:
 		_check(not HouseBuilder.in_house(me.global_position), "el anfitrión terminó afuera de la casa (%s)" % me.global_position.snapped(Vector3(0.1, 0.1, 0.1)))
 
-	# 8. Irse con el camión.
+	# 8. El camión: subirse a manejar, arrancar, frenar (lo de la caja se golpea), un acompañante
+	# y escapar del barrio sin llegar a la cuota (la misión se cancela).
+	# Al que echaron no se puede subir enseguida: esperar a que se le pase.
+	var t_ej := Time.get_ticks_msec()
+	while world.players.values().any(func(p: Player) -> bool: return p.ejected) and Time.get_ticks_msec() - t_ej < 8000:
+		await _wait(0.2)
+	var truck := world.truck
+	var tv := _find("tv")
+	var tv_id := tv.entity_id
+	tv.global_transform = Transform3D(Basis(), truck.to_global(Vector3(0, 1.1, -1.2)))
+	tv.linear_velocity = Vector3.ZERO
 	await _wait(1.0)
-	me.teleport(Vector3(-13.0, 0.1, 16.8))
+	_check(world._loaded.has(tv_id), "el televisor quedó cargado en la caja")
+	me.teleport(truck.door_position("truck_drive"))
 	await _wait(0.3)
-	world._srv_leave(1)
-	await _wait(0.5)
-	_check(world.night_over() and not world.results.is_empty(), "terminó la noche al irse")
-	_check(int(world.results.get("value", 0)) >= jewelry.value(), "el resultado cuenta el botín ($%d)" % world.results.get("value", 0))
+	_check(world.srv_seat(1, "truck_drive"), "el anfitrión se subió a manejar")
+	await _wait(0.2)
+	_check(truck.driver == 1 and me.seat == 0, "quedó al volante (asiento %d)" % me.seat)
+	_check(not world.srv_seat(1, "truck_drive"), "no se puede subir dos veces")
+	var other_peer := 0
+	if expect_clients > 0:
+		other_peer = world.players.keys().filter(func(p: int) -> bool: return p != 1)[0]
+		world.rpc_teleport.rpc_id(other_peer, truck.door_position("truck_ride"))
+		await _wait(0.8)
+		_check(world.srv_seat(other_peer, "truck_ride"), "el cliente se subió de acompañante")
+		await _wait(0.2)
+		_check(int(truck.seats.get(other_peer, -1)) == 1, "va en el asiento del acompañante")
+	var start_x := truck.global_position.x
+	# Arrancar y frenar en seco (antes del primer lomo de burro).
+	await _drive(1.0, 0.0, false, 1.6)
+	_check(truck.speed > 5.0, "el camión arranca (%.1f m/s)" % truck.speed)
+	_check(truck.global_position.x < start_x - 3.0, "y va hacia la salida del barrio (x %.1f)" % truck.global_position.x)
+	_check(absf(truck.global_position.z - HouseBuilder.TRUCK_POS.z) < 1.0, "derecho por la calle (z %.1f)" % truck.global_position.z)
+	_check(truck.global_transform.basis.y.y > 0.9, "sin volcar")
+	_check(not world.srv_seat(1, "exit"), "andando no se puede bajar")
+	await _drive(0.0, 0.0, true, 2.0)
+	_check(truck.speed < 0.6, "con el freno de mano se detiene (%.2f m/s)" % truck.speed)
+	_check(world.entities.has(tv_id), "un frenazo despacio no rompe el televisor")
+	_check(world.srv_seat(1, "exit"), "parado se puede bajar")
+	await _wait(0.2)
+	_check(truck.driver == 0 and me.seat == -1, "se bajó del camión")
+	_check(me.global_position.distance_to(truck.exit_position(0)) < 1.0, "quedó parado al lado de la puerta")
+	await _wait(1.5)
+	_check(truck.speed < 0.2, "sin nadie al volante queda frenado")
+	me.teleport(truck.door_position("truck_drive"))
+	await _wait(0.3)
+	_check(world.srv_seat(1, "truck_drive"), "se volvió a subir a manejar")
+	# Despacio por el primer lomo de burro: no se rompe nada.
+	var bump: float = HouseBuilder.SPEED_BUMPS_X[0]
+	var t_slow := Time.get_ticks_msec()
+	while truck.global_position.x > bump - 2.5 and Time.get_ticks_msec() - t_slow < 20000:
+		await _drive(1.0 if truck.speed < 2.0 else 0.0, 0.0, false, 0.05)
+	_say("sacudones despacio: %s" % [world.jolts])
+	_check(truck.global_position.x < bump - 2.5, "pasó el lomo de burro despacio")
+	_check(world.entities.has(tv_id), "despacio, el televisor pasa entero")
+	# A toda velocidad por el segundo: lo de la caja salta y lo frágil se rompe. Y se escapan.
+	var t_drive := Time.get_ticks_msec()
+	while not world.night_over() and Time.get_ticks_msec() - t_drive < 15000:
+		await _drive(1.0, 0.0, false, 0.05)
+	_say("sacudones rápido: %s" % [world.jolts])
+	_check(world.cargo_hits > 0, "el lomo de burro sacudió lo de la caja (%d golpes)" % world.cargo_hits)
+	_check(not world.entities.has(tv_id), "a toda velocidad, el lomo de burro rompió el televisor")
+	_check(world.night_over() and not world.results.is_empty(), "terminó la noche al salir del barrio")
+	_check(world.results.get("reason", "") == "cancel", "sin llegar a la cuota la misión se cancela (%s)" % world.results.get("reason", ""))
+	_check(int(world.results.get("total", -1)) == 0 and int(world.results.get("stars", -1)) == 0, "y se pierde todo lo cargado")
+	_check(int(world.results.get("value", 0)) >= jewelry.value(), "el resultado muestra lo que llevaban ($%d)" % world.results.get("value", 0))
 	_check(world.results.get("players", []).size() == expect_clients + 1, "hay una fila por jugador")
+	var left_rows: Array = (world.results.get("players", []) as Array).filter(func(r: Dictionary) -> bool: return r["left"])
+	_check(left_rows.is_empty(), "nadie quedó atrás (iban todos arriba)")
 	_say("premios: %s" % [world.results.get("titles", [])])
+	await _wait(2.0)
+	_check(truck.speed < 0.5, "al terminar la noche el camión queda frenado (%.2f m/s)" % truck.speed)
 
 	# 9. ¿Los clientes ven lo mismo?
 	if expect_clients > 0:
@@ -202,11 +264,21 @@ func _run_host() -> void:
 	_check(don.sleep_mult > 1.0, "y tiene el sueño más liviano (x%.2f)" % don.sleep_mult)
 	_check(world.entities.size() == HouseBuilder._items().size(), "volvieron todos los objetos")
 	_check(world.results.is_empty() and not world.night_over(), "se borraron los resultados")
+	_check(world.truck.global_position.distance_to(HouseBuilder.TRUCK_POS) < 0.5 and world.truck.seats.is_empty(), "el camión volvió a estacionarse vacío")
+	_check(me.seat == -1, "el anfitrión ya no está sentado")
 	if expect_clients > 0:
 		await _compare_clients(false, 2)
 	_finish()
 
 ## ¿Hay una hoja de puerta en el medio del vano? (Una cápsula del tamaño de un jugador.)
+## Maneja el camión durante `seconds` (en la prueba no hay teclado: se le pasa el mando a mano).
+func _drive(throttle: float, steer: float, handbrake: bool, seconds: float) -> void:
+	var t := 0.0
+	while t < seconds:
+		world._srv_drive_input(world.truck.driver, throttle, steer, handbrake)
+		await get_tree().physics_frame
+		t += 1.0 / Engine.physics_ticks_per_second
+
 func _door_blocks(d: Door) -> bool:
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.3
@@ -233,6 +305,9 @@ func _compare_clients(results_expected: bool, night: int) -> void:
 		_check(int(rep[2]) == int(world.homeowner.state), "el cliente ve a Don Ramón igual (%d vs %d)" % [rep[2], world.homeowner.state])
 		_check(bool(rep[3]) == results_expected, "el cliente %s los resultados" % ("ve" if results_expected else "ya no ve"))
 		_check(int(rep[4]) == night, "el cliente está en la noche %d" % night)
+		var tpos: Vector3 = rep[5]
+		_check(tpos.distance_to(world.truck.global_position) < 1.0, "el cliente ve el camión en el mismo lugar (%.2f m)" % tpos.distance_to(world.truck.global_position))
+		_check(rep[6] == world.truck.seats, "el cliente ve los mismos asientos (%s vs %s)" % [rep[6], world.truck.seats])
 
 func _finish() -> void:
 	Voice.debug_level = -1.0

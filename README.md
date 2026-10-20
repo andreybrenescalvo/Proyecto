@@ -17,6 +17,8 @@ la mudanza de día, más casas, arte y sonido de verdad.
 | ![Calle con casas vecinas distintas, autos estacionados y el camión de mudanzas](docs/capturas/barrio.png) | ![Cocina con baldosas, mesada de mármol y alacenas](docs/capturas/cocina.png) |
 | **El dormitorio** | **Don Ramón despierto, buscando** |
 | ![Dormitorio con empapelado, cortinas y piso de madera; Don Ramón dormido](docs/capturas/dormitorio.png) | ![Don Ramón en pijama y gorro de dormir caminando por el pasillo](docs/capturas/don_ramon.png) |
+| **Escapando en el camión** | **El lomo de burro (despacio, que se rompe todo)** |
+| ![El camión de mudanzas andando por la calle de noche, con el velocímetro y el aviso de ir despacio](docs/capturas/manejando.png) | ![Lomo de burro pintado de amarillo antes de la salida del barrio](docs/capturas/lomo_de_burro.png) |
 
 ## Qué tiene el prototipo
 
@@ -44,10 +46,17 @@ la mudanza de día, más casas, arte y sonido de verdad.
   (le cuesta más si está agachado o detrás de un mueble; le es más fácil con la linterna
   prendida) lo persigue. Al que atrapa **lo tira a la calle y llama a la policía**: llega en
   60 segundos. Si no encuentra a nadie, vuelve a la cama... con el sueño más liviano.
-- **El camión:** está estacionado en la calle, a unos 14 m de la puerta (más cerca, el motor
-  despertaría a Don Ramón). Lo que está adentro de la caja de carga cuenta como botín. Para
-  terminar la noche, alguien mantiene E en la puerta del conductor (la que da a la vereda). Los que se quedan adentro de la casa
-  cuentan como detenidos (multa de $300 cada uno).
+- **El camión:** está estacionado en la calle, a unos 14 m de la puerta. Lo que está adentro de
+  la caja de carga cuenta como botín. Se maneja de verdad: ruedas con suspensión, motor, frenos,
+  faros que alumbran y sombra. Uno se sube a manejar (E en la puerta del conductor, del lado de
+  la calle) y los demás de acompañantes (E en la puerta de la vereda o en la rampa de atrás).
+  El motor hace ruido: arrancar al lado de la casa también se oye.
+- **Escapar:** la noche termina cuando el camión sale del barrio (calle abajo, pasando el cartel
+  "Salida del barrio"). Los que no van arriba cuentan como detenidos (multa de $300 cada uno).
+  **Si se van antes de llegar a la cuota, el encargo se cancela y se pierde todo lo cargado.**
+- **Cuidado con lo de la caja:** va suelto, así que un choque o un **lomo de burro** pasado
+  rápido lo sacude, y lo frágil se rompe (el jarrón desde unos 23 km/h, el televisor desde unos
+  39). Pasado el límite de 25 km/h, la pantalla avisa "¡Despacio!". La culpa es del que maneja.
 - **Resultados de la noche:** botín contra la cuota, de 0 a 3 estrellas y "premios":
   *El más ruidoso*, *Despertador humano* (quién lo despertó), *Manos de mantequilla*,
   *Imán de abuelos* y *Empleado del mes*. Después se puede jugar otra noche: la cuota sube
@@ -105,11 +114,14 @@ micrófono.
 | C o Ctrl | Agacharse (casi no hace ruido y cuesta más verte) |
 | Espacio | Saltar |
 | Mouse | Mirar |
-| E | Agarrar / soltar, abrir y cerrar puertas; mantener en la cabina del camión para irse |
+| E | Agarrar / soltar, abrir y cerrar puertas; subirse al camión y bajarse (parado) |
 | Clic izquierdo | Lanzar lo que se tiene en la mano (¡ruido!) |
 | F | Prender / apagar la linterna |
 | Esc | Pausa (micrófono, invitar amigos, salir) |
 | F3 | Datos de depuración: alerta de Don Ramón en números y los últimos ruidos que oyó |
+
+Arriba del camión, el que maneja usa **W / S** para acelerar y frenar (o marcha atrás), **A / D**
+para doblar y **Espacio** como freno de mano.
 
 ## Cómo se juega
 
@@ -118,7 +130,8 @@ micrófono.
    se abre con **E** (hace un poco de ruido). La de la cocina, atrás, también sirve.
 3. Buscan lo que vale y lo llevan a la caja del camión. Lo chico se lleva en la mano; lo pesado, entre dos.
 4. Arriba de la pantalla se ve cómo duerme Don Ramón. Si la barra se vacía, se despierta.
-5. Cuando quieran irse (o si viene la policía), todos al camión y alguien mantiene E en la puerta del conductor.
+5. Cuando tengan la cuota (o si viene la policía), todos arriba del camión y a manejar hasta la
+   salida del barrio. Despacio por los lomos de burro, que lo de la caja se rompe.
 
 ## Estructura del proyecto
 
@@ -138,7 +151,8 @@ scripts/
     fx.gd                  Partículas, destellos y textos flotantes
   world/
     world.gd               La partida: reglas, ruido, camión, policía, red (RPC)
-    house_builder.gd       La casa, sus estilos, el barrio y el camión; puntos por donde camina el dueño
+    house_builder.gd       La casa, sus estilos y el barrio (con los lomos de burro); puntos por donde camina el dueño
+    truck.gd               El camión: física de vehículo, asientos, rampa, faros y sacudones de la caja
     house_owner.gd         Don Ramón: oído, vista y máquina de estados
     door.gd                Puertas con bisagra
   entities/entity.gd       Objetos físicos (lo que se roba y lo que solo hace ruido)
@@ -168,6 +182,8 @@ Todo está en `scripts/core/config.gd`. Lo más importante para probar con amigo
 - `NOISE_*`: cuánto ruido hace cada cosa (pasos, tablas, arrastrar, romper).
 - `OWNER_*`: velocidad, distancia a la que ve y cuánto tarda en rendirse.
 - `ITEMS`: valor, peso y fragilidad de cada objeto.
+- `TRUCK_*` y `BUMP_*`: velocidad del camión, desde cuándo avisa "¡Despacio!", qué tan fuerte
+  sacude un lomo de burro y desde qué distancia cuenta como escapada.
 
 Los estilos de casa están en `scripts/world/house_builder.gd` (`FACADES`, `PAINTS`, `PAPERS`,
 `WOODS`, `CARPETS`, `TILES`). Para cambiar una textura: editar `tools/generate_textures.py`,
@@ -180,8 +196,10 @@ F3 muestra en el juego la alerta en números y los últimos ruidos que oyó, con
 Recorren las mecánicas principales con un anfitrión y un cliente reales conectados por red:
 que la voz suba la alerta (y que un susurro lejos no), la puerta que chilla, cargar el joyero en
 el camión, romper el jarrón, el sillón entre dos (y arrastrado por uno), que Don Ramón se
-despierte, persiga y eche a alguien, irse y empezar otra noche. Al final comprueban que el
-cliente vea lo mismo que el anfitrión.
+despierte, persiga y eche a alguien, subirse a manejar con un acompañante, arrancar, frenar,
+bajarse, pasar un lomo de burro despacio (el televisor llega entero) y otro rápido (se rompe),
+escapar sin la cuota (misión cancelada) y empezar otra noche. Al final comprueban que el cliente
+vea lo mismo que el anfitrión (también el camión y quién va sentado).
 
 ```sh
 godot --headless --path . -- --host --autotest --expect=1 &
@@ -189,7 +207,8 @@ godot --headless --path . -- --join=127.0.0.1 --autotest
 ```
 
 Cada una termina con `AUTOTEST OK` (o con la lista de lo que falló). También hay un recorrido que guarda
-capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida`.
+capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida` (con `--tour-drive`
+saca solo las del camión andando).
 
 ## Trabajar con el "estudio" de IA
 

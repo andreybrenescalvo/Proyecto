@@ -17,7 +17,6 @@ const SPRINT := 6.5
 const CROUCH := 1.9
 const INTERACT_RANGE := 2.6
 const THROW_SPEED := 8.0
-const LEAVE_HOLD_TIME := 1.2      # segundos manteniendo E en la cabina para irse
 
 # --- Ruido ---
 ## El dueño "oye" cada ruido según lo fuerte que es (0..1+), la distancia y las paredes en el medio.
@@ -47,6 +46,25 @@ const NOISE_CRASH := [1.2, 1.5]         # algo que se rompe
 const NOISE_IMPACT_K := 0.06            # golpe de un objeto: fuerza = velocidad * raíz(masa) * K
 const NOISE_IMPACT_MIN_SPEED := 1.2
 const VOICE_LOUDNESS := 1.0             # el micrófono (0..1) se multiplica por esto
+## El motor del camión: [fuerza parado, cuánto suma por cada m/s]. Se oye cada medio segundo.
+## Estacionado en la calle casi no llega a la pieza; si lo acercan a la casa, lo despierta.
+const NOISE_ENGINE := [0.45, 0.03]
+const NOISE_ENGINE_WEIGHT := 0.5
+
+# --- El camión ---
+const TRUCK_MAX_SPEED := 13.5     # m/s (unos 48 km/h)
+const TRUCK_SAFE_SPEED := 7.0     # m/s (unos 25 km/h): más rápido, lo de la caja se golpea
+const TRUCK_EXIT_SPEED := 1.5     # para bajarse hay que estar casi parado
+const ESCAPE_DISTANCE := 40.0     # metros desde donde estaba estacionado: se escaparon
+## Sacudones del camión: lo que va en la caja recibe un golpe que se compara con el "break" de
+## cada cosa frágil. Lomo de burro: golpe = velocidad × BUMP_K (despacio, menos de
+## BUMP_SAFE_SPEED, no pasa nada). Con 0,55: el jarrón se rompe desde unos 23 km/h, el televisor
+## desde unos 39 y la notebook desde unos 46. Choque: golpe = frenada en m/s² × TRUCK_CRASH_K
+## (desde TRUCK_CRASH_MIN; un frenazo normal no llega).
+const BUMP_SAFE_SPEED := 3.0
+const BUMP_K := 0.55
+const TRUCK_CRASH_MIN := 14.0
+const TRUCK_CRASH_K := 0.12
 
 # --- El dueño ---
 const OWNER_WALK := 2.2           # en pantuflas, investigando
