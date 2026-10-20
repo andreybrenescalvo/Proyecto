@@ -213,3 +213,47 @@ no dejaban pasar), el camión se estacionó en la calle (cerca de la casa el mot
 y se pasó del estilo de cajas de colores a texturas con relieve, con referencia en las casas de
 *Thief Simulator 2*. Cada noche la casa tiene otra fachada, techo, pinturas y pisos, y el barrio
 tiene casas vecinas distintas.
+
+---
+
+## 9. Hoja de ruta después de la segunda prueba
+
+Lo que se pidió después de jugarlo: personas con forma humana y animadas (con sombras que se
+muevan), un camión de verdad, huir manejando, un almacén secreto con mercado negro, un mapa más
+grande con barrios de distinto nivel y mucha más seguridad en las casas. Se ordenó en tres
+etapas, probando con amigos entre una y otra. El detalle de la etapa en curso está en
+`design/game-brief.md`.
+
+### Etapa 1: "La huida" (en curso)
+Cerrar el ciclo completo: robar → huir → vender → comprar → volver.
+- Personas animadas (jugadores y Don Ramón): caminar, correr, agacharse, cargar, dormir.
+- Camión de verdad, con física de vehículo y modo de conducción.
+- Lo que va en la caja se golpea y se rompe con frenazos, choques o yendo rápido.
+- Camino hasta el **almacén secreto**: ahí se descarga y se vende en el **mercado negro**.
+- Mercado negro de **compra**: herramientas para las próximas noches.
+- Guardado de partida (plata y herramientas).
+- **Irse antes de la cuota cancela la misión y se pierde todo lo cargado.**
+
+### Etapa 2: "La seguridad"
+Cada cosa con su minijuego, y las herramientas se compran en el mercado negro.
+- Alarmas con panel para desactivarlas.
+- Cámaras de seguridad (si te ven, suena la alarma).
+- Caja de electricidad afuera de la casa: cortar la luz apaga alarmas y cámaras.
+- **Inhibidor de señal** (estilo Mute de *Rainbow Six*): apaga la tecnología cercana; alcance y
+  batería limitados.
+- Mascotas que huelen y ladran (y despiertan al dueño) + **pistola tranquilizante**.
+- Cajas fuertes con minijuego.
+
+### Etapa 3: "La ciudad"
+- Mapa más grande con cuatro barrios: **popular, clase media, clase alta y millonarios**.
+- Cuanto más rico el barrio: objetos más valiosos, más seguridad, más objetos que hay que cargar
+  entre 3 o 4, y **vigilancia privada** que patrulla el de millonarios.
+- Casas con distintas distribuciones de cuartos.
+- **Vecinos testigos:** si ven el robo, caminan al teléfono público más cercano a llamar a la
+  policía; los jugadores pueden interceptarlos o sobornarlos antes de que lleguen.
+
+### Modelos 3D
+Las personas y el camión realistas necesitan modelos hechos por artistas. Se usan modelos
+gratuitos y sin licencias: **Quaternius** (personas con animaciones), **Kenney** (vehículos,
+muebles) y **Poly Haven** (objetos y texturas fotográficas). Para descargarlos hay que permitir
+esos sitios en la configuración de red del entorno de Claude Code.
