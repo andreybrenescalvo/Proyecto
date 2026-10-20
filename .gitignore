@@ -23,3 +23,7 @@ project.local.yaml
 production/session-logs/
 production/session-state/
 .scratch/
+
+# Fuentes de los personajes (paquetes CC0 de Quaternius, se bajan aparte: ver README)
+tools/personajes/fuentes/
+__pycache__/

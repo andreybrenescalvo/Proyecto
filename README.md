@@ -19,6 +19,8 @@ la mudanza de día, más casas, arte y sonido de verdad.
 | ![Dormitorio con empapelado, cortinas y piso de madera; Don Ramón dormido](docs/capturas/dormitorio.png) | ![Don Ramón en pijama y gorro de dormir caminando por el pasillo](docs/capturas/don_ramon.png) |
 | **Escapando en el camión** | **El lomo de burro (despacio, que se rompe todo)** |
 | ![El camión de mudanzas andando por la calle de noche, con el velocímetro y el aviso de ir despacio](docs/capturas/manejando.png) | ![Lomo de burro pintado de amarillo antes de la salida del barrio](docs/capturas/lomo_de_burro.png) |
+| **Los mudanceros (uno por jugador)** | |
+| ![Tres mudanceros animados en la vereda: remera naranja, camisa a cuadros y remera verde](docs/capturas/mudanceros.png) | |
 
 ## Qué tiene el prototipo
 
@@ -63,8 +65,12 @@ la mudanza de día, más casas, arte y sonido de verdad.
   y Don Ramón duerme más liviano.
 - **Multijugador sin servidores:** un jugador es el anfitrión y los demás se conectan a él
   (por IP/red local, o por Steam con el plugin GodotSteam).
+- **Personas animadas:** los mudanceros (uno distinto por jugador) y Don Ramón tienen cuerpo,
+  cara y ropa en capas (remera, camisa, jean, pijama, zapatillas, pantuflas), armados en Blender
+  con la herramienta de `tools/personajes/`. Caminan, corren, se agachan y alumbran con las
+  animaciones de Quaternius; el propio jugador no ve su cuerpo, pero sí su sombra.
 - **Sonidos generados por código** (provisorios: ronquido, vidrios rotos, chirrido de puertas,
-  sirena) y gráficos de cajas de colores, estilo low-poly.
+  sirena); la casa y los muebles son de cajas con texturas, estilo low-poly.
 
 **La voz entre los jugadores todavía no viaja por el juego:** por ahora se habla por Discord
 (o lo que usen). El juego solo mide el volumen de cada micrófono.
@@ -156,15 +162,18 @@ scripts/
     house_owner.gd         Don Ramón: oído, vista y máquina de estados
     door.gd                Puertas con bisagra
   entities/entity.gd       Objetos físicos (lo que se roba y lo que solo hace ruido)
+  entities/character_model.gd  Una persona animada (modelo + animaciones)
   player/player.gd         El mudancero en primera persona
   ui/hud.gd, ui/menu.gd    Interfaz (y resultados de la noche)
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
 assets/textures/           Texturas (color + relieve) generadas por tools/generate_textures.py
+assets/characters/         Personajes (glTF) y animaciones (animaciones.glb), de tools/personajes/
 .claude/                   El "estudio" de IA: agentes, skills, hooks y reglas
 CLAUDE.md, project.yaml    Configuración del estudio para este proyecto
 design/, production/       Documentos de diseño y de producción que crean los comandos del estudio
 tools/generate_textures.py Generador de texturas (Python con numpy y Pillow)
+tools/personajes/          Herramienta de Blender que arma los personajes (ver abajo)
 docs/                      Plan del juego y capturas
 ```
 
@@ -172,6 +181,24 @@ docs/                      Plan del juego y capturas
 jugador mueve su propio mudancero y le manda al anfitrión su posición, si está agachado o con la
 linterna, su nivel de voz y sus pedidos ("agarrar esto", "abrir esta puerta"). Quien entra a una
 partida empezada recibe una "foto" completa del estado.
+
+## Personajes (cómo se arman)
+
+Los personajes salen de `tools/personajes/armar.py`, que corre en **Blender** (como módulo de
+Python, `pip install bpy`). Parte del cuerpo base de Quaternius, le cambia las proporciones, le
+pinta una piel propia (con pecas, rubor o arrugas a elección) y modela cada prenda sobre el cuerpo
+como una pieza aparte (con grosor de tela, dobladillos, costuras, bolsillos y botones). Las
+recetas de cada personaje (ropa, colores, peinado, tono de piel) están al principio de `armar.py`.
+
+```sh
+python3 -m venv .venv-blender && .venv-blender/bin/pip install bpy==5.2.2 pillow
+python3 tools/personajes/descargar_fuentes.py        # paquetes de Quaternius (CC0), a fuentes/
+cd tools/personajes && ../../.venv-blender/bin/python armar.py mudancero mudancera mudancero2 ramon
+```
+
+Escribe los modelos en `assets/characters/`. **Créditos:** cuerpos base, peinados y animaciones
+de [Quaternius](https://quaternius.com) (Universal Base Characters y Universal Animation
+Library), licencia CC0 (dominio público).
 
 ## Ajustar el balance
 
@@ -241,7 +268,9 @@ lo pidan.
 - La **mudanza de día** (ver el plan): ver la casa por dentro antes de robarla.
 - Más casas para robar con otra distribución de cuartos (la abuela con gatos, el policía
   jubilado, la mansión) y la barra de sospecha.
-- Modelos de verdad para los muebles y los personajes, sonidos y música.
+- Personajes: modelos realmente distintos (hombres y mujeres de distintas tez y contextura),
+  sombreros y vello facial (barba, bigote) que convenzan; Don Ramón con los ojos cerrados al dormir.
+- Modelos de verdad para los muebles, sonidos y música.
 - Abrir la página "Próximamente" en Steam lo antes posible para juntar wishlists.
 
 El prototipo anterior (*Mineros Endeudados*) sigue en el historial de git, en el commit `6a41459`.

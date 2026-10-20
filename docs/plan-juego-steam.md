@@ -253,6 +253,10 @@ Cada cosa con su minijuego, y las herramientas se compran en el mercado negro.
   policía; los jugadores pueden interceptarlos o sobornarlos antes de que lleguen.
 
 ### Modelos 3D
+**Personajes (hecho, primera versión):** se arman en Blender con `tools/personajes/` sobre los
+cuerpos base de Quaternius: proporciones y piel propias, ropa en capas. Quedan para más adelante:
+más modelos distintos (sexo, tez, contextura), sombreros y vello facial, que todavía no convencen.
+
 Las personas y el camión realistas necesitan modelos hechos por artistas. Se usan modelos
 gratuitos y sin licencias: **Quaternius** (personas con animaciones), **Kenney** (vehículos,
 muebles) y **Poly Haven** (objetos y texturas fotográficas). Para descargarlos hay que permitir

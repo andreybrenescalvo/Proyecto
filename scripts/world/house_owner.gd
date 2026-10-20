@@ -48,6 +48,9 @@ var _look_yaw := 0.0
 var _net_pos := Vector3.ZERO
 var _net_yaw := 0.0
 var _visual: Node3D
+var model: CharacterModel
+var _prev_pos := Vector3.ZERO
+var _speed := 0.0            # medida por el movimiento (así sirve igual en los clientes)
 var _icon: Label3D
 var _flashlight: SpotLight3D
 var _snore: AudioStreamPlayer3D
@@ -104,40 +107,16 @@ func _lie_down() -> void:
 func _build_visual() -> void:
 	_visual = Node3D.new()
 	add_child(_visual)
-	var skin := Color(0.93, 0.74, 0.6)
-	var pj := Color(0.55, 0.7, 0.9)
-	var stripe := Color(0.35, 0.45, 0.75)
-	# Piernas con pantuflas.
-	for side in [-1.0, 1.0]:
-		Mats.add_box(_visual, Vector3(0.24, 0.8, 0.26), Vector3(side * 0.14, 0.42, 0), pj)
-		Mats.add_box(_visual, Vector3(0.24, 0.1, 0.3), Vector3(side * 0.14, 0.05, -0.03), Color(0.95, 0.55, 0.65))
-	# Torso con rayas, panza y brazos.
-	Mats.add_box(_visual, Vector3(0.62, 0.72, 0.4), Vector3(0, 1.16, 0), pj)
-	Mats.add_box(_visual, Vector3(0.5, 0.4, 0.12), Vector3(0, 1.0, -0.2), pj)
-	for i in 4:
-		Mats.add_box(_visual, Vector3(0.63, 0.04, 0.41), Vector3(0, 0.88 + i * 0.17, 0), stripe)
-	for side in [-1.0, 1.0]:
-		Mats.add_box(_visual, Vector3(0.17, 0.62, 0.2), Vector3(side * 0.41, 1.16, 0), pj)
-		Mats.add_box(_visual, Vector3(0.14, 0.12, 0.14), Vector3(side * 0.41, 0.8, 0), skin)
-	# Cabeza pelada con pelo a los costados, bigote y gorro de dormir.
-	var head := Node3D.new()
-	head.position = Vector3(0, 1.72, 0)
-	_visual.add_child(head)
-	Mats.add_box(head, Vector3(0.38, 0.4, 0.38), Vector3.ZERO, skin)
-	for side in [-1.0, 1.0]:
-		Mats.add_box(head, Vector3(0.06, 0.14, 0.3), Vector3(side * 0.2, 0.0, 0.02), Color(0.85, 0.85, 0.85))
-		Mats.add_box(head, Vector3(0.07, 0.04, 0.02), Vector3(side * 0.08, 0.06, -0.195), Color(0.1, 0.1, 0.1))
-	Mats.add_box(head, Vector3(0.26, 0.07, 0.05), Vector3(0, -0.08, -0.2), Color(0.9, 0.9, 0.9))
-	Mats.add_box(head, Vector3(0.08, 0.1, 0.08), Vector3(0, -0.01, -0.22), skin.darkened(0.08))
-	Mats.add_box(head, Vector3(0.4, 0.12, 0.4), Vector3(0, 0.22, 0.02), Color(0.85, 0.2, 0.2))
-	Mats.add_box(head, Vector3(0.26, 0.14, 0.26), Vector3(0, 0.33, 0.06), Color(0.85, 0.2, 0.2), Vector3(-15, 0, 0))
-	Mats.add_box(head, Vector3(0.14, 0.14, 0.14), Vector3(0, 0.38, 0.22), Color(0.85, 0.2, 0.2), Vector3(-40, 0, 0))
-	Mats.add_box(head, Vector3(0.1, 0.1, 0.1), Vector3(0, 0.36, 0.33), Color(0.95, 0.95, 0.95))
+	model = CharacterModel.create("ramon")
+	_visual.add_child(model)
 	# Linterna (solo se prende cuando anda despierto).
 	var torch := Node3D.new()
-	torch.position = Vector3(0.41, 1.0, -0.15)
+	torch.position = Vector3(-0.25, 1.15, -0.3)
 	_visual.add_child(torch)
-	Mats.add_cylinder(torch, 0.04, 0.22, Vector3.ZERO, Color(0.2, 0.2, 0.22), Vector3(90, 0, 0), 8)
+	var hand := BoneAttachment3D.new()
+	hand.bone_name = "hand_r"
+	model.skeleton().add_child(hand)
+	Mats.add_cylinder(hand, 0.025, 0.18, Vector3(0, 0.09, 0.03), Color(0.2, 0.2, 0.22), Vector3.ZERO, 8)
 	_flashlight = SpotLight3D.new()
 	_flashlight.light_color = Color(1.0, 0.95, 0.8)
 	_flashlight.light_energy = 0.0
@@ -157,21 +136,32 @@ func _build_visual() -> void:
 
 func _update_pose(delta: float) -> void:
 	_anim += delta
+	var moved := global_position - _prev_pos
+	_prev_pos = global_position
+	_speed = lerpf(_speed, Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001), clampf(delta * 8.0, 0.0, 1.0))
 	var lying := state == State.SLEEP
 	if lying:
 		_visual.rotation_degrees = HouseBuilder.BED_LYING_ROT
-		_visual.position = Vector3.ZERO
-		# Respira (sube y baja la panza) y se mueve más cuanto más inquieto está.
+		_visual.position = Vector3(0, -0.05, 0)      # metido bajo la frazada
+		# Respira tranquilo; cuanto más inquieto, más se mueve.
 		var wiggle := 0.0 if _stage == 0 else sin(_anim * 3.0) * 4.0 * _stage
 		_visual.rotation_degrees.z = wiggle
-		_visual.position.y = sin(_anim * 1.9) * 0.015
+		model.play("Idle", 0.35 + 0.3 * _stage, 0.0)
 	elif state == State.WAKING:
 		# Parado al lado de la cama, mirando hacia la puerta.
 		_visual.rotation_degrees = Vector3(0, 90, 0)
 		_visual.position = HouseBuilder.WAYPOINTS["cama"] - global_position + Vector3(0, 0.03, 0)
+		model.play("Idle_Talking")
 	else:
 		_visual.rotation_degrees = Vector3(0, 0, 0)
-		_visual.position = Vector3(0, absf(sin(_anim * 9.0)) * 0.04 if velocity.length() > 0.5 else 0.0, 0)
+		_visual.position = Vector3.ZERO
+		var spd := _speed
+		if spd > Config.OWNER_WALK + 0.3:
+			model.play("Jog_Fwd", clampf(spd / 3.5, 0.8, 1.4))
+		elif spd > 0.3:
+			model.play("Walk", clampf(spd / 1.4, 0.7, 1.4))
+		else:
+			model.play("Idle_Torch")
 	# Ícono sobre la cabeza.
 	var icon_pos := Vector3(1.4, 0.7, 0) if lying else Vector3(0, 2.3, 0)
 	if state == State.WAKING:

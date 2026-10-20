@@ -25,6 +25,18 @@ func _ready() -> void:
 		await _drive_out()
 		get_tree().quit(0)
 		return
+	# Los mudanceros (los de los demás jugadores, como se los ve en el juego).
+	var crew: Array[CharacterModel] = []
+	for i in CharacterModel.PLAYER_MODELS.size():
+		var m := CharacterModel.create(CharacterModel.PLAYER_MODELS[i])
+		world.add_child(m)
+		m.global_position = Vector3(-4.6 + i * 1.0, 0.05, 16.4)
+		m.rotation.y = PI + (i - 1) * 0.25
+		m.play(["Idle", "Idle_Torch", "Walk"][i])
+		crew.append(m)
+	await _shot_from(Vector3(-3.6, 0.1, 19.8), Vector3(-3.6, 1.0, 16.4), "los_mudanceros")
+	for m in crew:
+		m.queue_free()
 	# Afuera: la casa, el camión en la calle y el barrio.
 	await _shot_from(Vector3(-15.0, 0.1, 20.5), Vector3(-4.0, 1.8, 6.0), "casa_y_camion")
 	await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "frente_de_la_casa")

@@ -24,6 +24,8 @@ var player_name := ""
 var is_local := false
 var world: World
 var color := Color.WHITE
+var slot := 0             # número de jugador (elige color y modelo)
+var model: CharacterModel
 
 var holding_id := 0
 var yaw := 0.0
@@ -60,6 +62,7 @@ func setup(id: int, new_name: String, local: bool, w: World, index: int) -> void
 	world = w
 	name = str(id)
 	color = Config.PLAYER_COLORS[index % Config.PLAYER_COLORS.size()]
+	slot = index
 
 func _ready() -> void:
 	collision_layer = Config.L_PLAYER
@@ -123,40 +126,16 @@ func _ready() -> void:
 func _build_body() -> void:
 	_body_visual = Node3D.new()
 	add_child(_body_visual)
-	var suit := color.darkened(0.1)
-	var dark := Color(0.12, 0.12, 0.14)
-	Mats.add_box(_body_visual, Vector3(0.6, 0.72, 0.36), Vector3(0, 1.08, 0), suit)          # mameluco
-	Mats.add_box(_body_visual, Vector3(0.62, 0.08, 0.38), Vector3(0, 0.76, 0), dark)         # cinturón
-	Mats.add_box(_body_visual, Vector3(0.25, 0.72, 0.3), Vector3(-0.15, 0.36, 0), suit.darkened(0.15))
-	Mats.add_box(_body_visual, Vector3(0.25, 0.72, 0.3), Vector3(0.15, 0.36, 0), suit.darkened(0.15))
-	Mats.add_box(_body_visual, Vector3(0.27, 0.12, 0.36), Vector3(-0.15, 0.06, -0.04), dark)
-	Mats.add_box(_body_visual, Vector3(0.27, 0.12, 0.36), Vector3(0.15, 0.06, -0.04), dark)
-	Mats.add_box(_body_visual, Vector3(0.17, 0.6, 0.2), Vector3(-0.4, 1.1, 0), suit)
-	Mats.add_box(_body_visual, Vector3(0.17, 0.6, 0.2), Vector3(0.4, 1.1, 0), suit)
-	Mats.add_box(_body_visual, Vector3(0.16, 0.14, 0.18), Vector3(-0.4, 0.75, 0), dark)       # guantes
-	Mats.add_box(_body_visual, Vector3(0.16, 0.14, 0.18), Vector3(0.4, 0.75, 0), dark)
-	var logo := Label3D.new()
-	logo.text = "MT"
-	logo.font_size = 64
-	logo.pixel_size = 0.004
-	logo.outline_size = 6
-	logo.position = Vector3(0, 1.15, 0.19)
-	logo.modulate = Color(0.95, 0.95, 0.9)
-	_body_visual.add_child(logo)
-	# Cabeza con pasamontañas (porque son mudanceros muy profesionales).
-	var head_visual := Node3D.new()
-	head.add_child(head_visual)
-	var skin := Color(0.93, 0.76, 0.6)
-	Mats.add_box(head_visual, Vector3(0.4, 0.42, 0.38), Vector3(0, -0.02, 0), dark)
-	Mats.add_box(head_visual, Vector3(0.32, 0.09, 0.02), Vector3(0, 0.04, -0.19), skin)
-	Mats.add_box(head_visual, Vector3(0.06, 0.05, 0.02), Vector3(-0.08, 0.04, -0.2), Color(0.95, 0.95, 0.95))
-	Mats.add_box(head_visual, Vector3(0.06, 0.05, 0.02), Vector3(0.08, 0.04, -0.2), Color(0.95, 0.95, 0.95))
-	Mats.add_box(head_visual, Vector3(0.025, 0.025, 0.02), Vector3(-0.08, 0.04, -0.212), Color(0.05, 0.05, 0.05))
-	Mats.add_box(head_visual, Vector3(0.025, 0.025, 0.02), Vector3(0.08, 0.04, -0.212), Color(0.05, 0.05, 0.05))
-	Mats.add_box(head_visual, Vector3(0.42, 0.1, 0.4), Vector3(0, 0.22, 0), color)            # gorro
-	Mats.add_box(head_visual, Vector3(0.12, 0.08, 0.12), Vector3(0, 0.3, 0), color.lightened(0.3))
-	if is_local:
-		head_visual.reparent(_body_visual, true)
+	model = CharacterModel.create(CharacterModel.PLAYER_MODELS[slot % CharacterModel.PLAYER_MODELS.size()])
+	_body_visual.add_child(model)
+
+## La animación según lo que hace (vale para el propio y para los que llegan por red).
+func _animate(in_air := false) -> void:
+	if seat >= 0:
+		model.play("Sitting_Idle")
+		return
+	model.update_from((net_flags & F_MOVING) != 0, (net_flags & F_SPRINT) != 0, (net_flags & F_CROUCH) != 0,
+			(net_flags & F_LIGHT) != 0, in_air)
 
 func _build_viewmodel() -> void:
 	_viewmodel = Node3D.new()
@@ -246,6 +225,7 @@ func _local_physics(delta: float) -> void:
 	net_flags = (F_CROUCH if crouching else 0) | (F_LIGHT if flashlight_on else 0) \
 			| (F_MOVING if moving else 0) | (F_SPRINT if sprinting and moving else 0)
 	voice = Voice.level
+	_animate(not is_on_floor())
 	_footsteps(delta)
 	_update_look()
 	_use_hands(delta)
@@ -344,7 +324,7 @@ func _remote_physics(delta: float) -> void:
 	rotation.y = lerp_angle(rotation.y, _net_yaw, t)
 	head.rotation.x = lerpf(head.rotation.x, _net_pitch, t)
 	head.position.y = lerpf(head.position.y, EYE_CROUCH if (net_flags & F_CROUCH) != 0 else EYE_STAND, clampf(delta * 10.0, 0.0, 1.0))
-	_body_visual.scale.y = lerpf(_body_visual.scale.y, 0.68 if (net_flags & F_CROUCH) != 0 else 1.0, clampf(delta * 10.0, 0.0, 1.0))
+	_animate()
 	_footsteps(delta)
 
 func _update_voice_label() -> void:
