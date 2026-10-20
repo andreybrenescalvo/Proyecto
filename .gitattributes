@@ -1,2 +1,5 @@
 # Normalizar finales de línea
 * text=auto eol=lf
+
+# La versión del juego: Git escribe acá el commit y la fecha al armar el ZIP de descarga.
+scripts/core/version.gd export-subst

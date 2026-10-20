@@ -20,6 +20,7 @@ var _expect_clients := 0
 var _tour_dir := ""
 
 func _ready() -> void:
+	get_window().title = "Mudanceros Truchos — versión %s" % Version.text()
 	Net.session_started.connect(_on_session_started)
 	Net.session_failed.connect(_on_session_failed)
 	Net.session_ended.connect(_on_session_ended)

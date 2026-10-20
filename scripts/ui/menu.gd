@@ -86,6 +86,10 @@ func _ready() -> void:
 	quit.visible = not OS.has_feature("web")
 	box.add_child(quit)
 
+	var version := Hud._label("Versión: %s" % Version.text(), 14, Color(0.5, 0.52, 0.6))
+	version.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(version)
+
 	var help := Hud._label("WASD moverse · Shift correr · C agacharse · E agarrar / puertas · Clic lanzar · F linterna\nPara hablar entre ustedes usen Discord (o lo que usen): el juego solo mide qué tan fuerte hablan.", 14, Color(0.6, 0.62, 0.7))
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(help)
