@@ -147,6 +147,9 @@ scripts/
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
 assets/textures/           Texturas (color + relieve) generadas por tools/generate_textures.py
+.claude/                   El "estudio" de IA: agentes, skills, hooks y reglas
+CLAUDE.md, project.yaml    Configuración del estudio para este proyecto
+design/, production/       Documentos de diseño y de producción que crean los comandos del estudio
 tools/generate_textures.py Generador de texturas (Python con numpy y Pillow)
 docs/                      Plan del juego y capturas
 ```
@@ -187,6 +190,29 @@ godot --headless --path . -- --join=127.0.0.1 --autotest
 
 Cada una termina con `AUTOTEST OK` (o con la lista de lo que falló). También hay un recorrido que guarda
 capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida`.
+
+## Trabajar con el "estudio" de IA
+
+El proyecto incluye [Claude Code Game Studios](https://github.com/Donchitos/Claude-Code-Game-Studios)
+(licencia MIT, copia de la licencia en `.claude/LICENSE-claude-code-game-studios.txt`):
+49 agentes especialistas (diseño, programación de Godot, QA, producción...) y comandos para
+cada etapa. Está configurado para Godot 4.7 con GDScript, en el modo más liviano (`minimal`).
+`CLAUDE.md` y `project.yaml` tienen la configuración.
+
+Los comandos funcionan en una sesión de Claude Code abierta sobre esta carpeta. Los más útiles
+para este momento:
+
+| Comando | Para qué |
+|---|---|
+| `/help` | "¿Qué hago ahora?" |
+| `/adopt` | La primera vez: revisa el proyecto y arma un plan para ordenarlo con la plantilla |
+| `/playtest-report` | Después de jugar con amigos: convierte lo que pasó en una lista de cambios |
+| `/balance-check` | Revisa los números (ruido, oído de Don Ramón, precios) buscando cosas rotas |
+| `/bug-report` | Anotar un error con los pasos para reproducirlo |
+| `/brainstorm` | Ideas nuevas (la mudanza de día, otras casas) |
+
+Con esta plantilla, Claude pregunta antes de escribir cada archivo y no hace commits sin que se
+lo pidan.
 
 ## Próximos pasos
 

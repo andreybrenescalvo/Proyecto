@@ -13,3 +13,13 @@
 
 # GodotSteam / Steam (se instalan aparte, ver README)
 steam_appid.txt
+
+# Claude Code Game Studios (archivos personales y de sesión)
+.claude/settings.local.json
+.claude/agent-memory/
+.claude/worktrees/
+CLAUDE.local.md
+project.local.yaml
+production/session-logs/
+production/session-state/
+.scratch/
