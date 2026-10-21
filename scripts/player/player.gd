@@ -18,6 +18,10 @@ const HOLD_DISTANCE := 1.5
 const EYE_STAND := 1.6
 const EYE_CROUCH := 1.0
 const VIEW_POS := Vector3(0.22, -0.2, -0.38)
+## Sentado en la computadora: altura del asiento, de los ojos y cuánto mira para abajo (al monitor).
+const COMPUTER_SEAT_HEIGHT := 0.46
+const COMPUTER_EYE := 0.72
+const COMPUTER_PITCH := -0.24
 
 var peer_id := 0
 var player_name := ""
@@ -39,6 +43,7 @@ var ejected := false      # (anfitrión) lo acaban de echar: el dueño no lo per
 var prompt := ""          # texto de ayuda que muestra el HUD
 var look := {}            # lo que el jugador está mirando (resultado del rayo)
 var seat := -1            # asiento en el camión (-1 = a pie, 0 = manejando)
+var at_computer := false  # sentado en la computadora del galpón
 
 var head: Node3D
 var camera: Camera3D
@@ -131,7 +136,8 @@ func _build_body() -> void:
 
 ## La animación según lo que hace (vale para el propio y para los que llegan por red).
 func _animate(in_air := false) -> void:
-	if seat >= 0:
+	model.set_typing(at_computer)
+	if seat >= 0 or at_computer:
 		model.play("Sitting_Idle")
 		return
 	model.update_from((net_flags & F_MOVING) != 0, (net_flags & F_SPRINT) != 0, (net_flags & F_CROUCH) != 0,
@@ -199,6 +205,9 @@ func _local_physics(delta: float) -> void:
 	if seat >= 0:
 		_seated_physics()
 		return
+	if at_computer:
+		_computer_physics()
+		return
 	rotation.y = yaw
 	head.rotation.x = pitch
 	if not is_on_floor():
@@ -252,6 +261,39 @@ func _seated_physics() -> void:
 	if _send_timer <= 0.0:
 		_send_timer = 0.05
 		world.send_player_state(global_position, yaw, pitch, net_flags, voice)
+
+## Sentado en la computadora: quieto, mirando el monitor (la pantalla la maneja el HUD).
+func _computer_physics() -> void:
+	velocity = Vector3.ZERO
+	global_position = CityBuilder.COMPUTER_SEAT + Vector3(0, COMPUTER_SEAT_HEIGHT, 0)
+	yaw = 0.0
+	pitch = COMPUTER_PITCH
+	rotation.y = yaw
+	head.rotation.x = pitch
+	head.position.y = COMPUTER_EYE
+	net_flags = F_SEATED
+	voice = Voice.level
+	prompt = ""
+	_animate()
+	_send_timer -= get_physics_process_delta_time()
+	if _send_timer <= 0.0:
+		_send_timer = 0.05
+		world.send_player_state(global_position, yaw, pitch, net_flags, voice)
+
+## El anfitrión avisa que se sentó en la computadora (o que se levantó).
+func set_at_computer(on: bool) -> void:
+	if on == at_computer:
+		return
+	at_computer = on
+	if not is_local:
+		return
+	collision_layer = 0 if on else Config.L_PLAYER
+	collision_mask = 0 if on else (Config.L_WORLD | Config.L_BIG | Config.L_PLAYER | Config.L_DOOR | Config.L_OWNER)
+	if on:
+		holding_id = 0
+	else:
+		teleport(CityBuilder.COMPUTER_SEAT + Vector3(0.0, 0.1, 0.9))
+		head.position.y = EYE_STAND
 
 func _update_seated_prompt() -> void:
 	if world.truck.speed > Config.TRUCK_EXIT_SPEED:
@@ -426,6 +468,12 @@ func _update_prompt() -> void:
 					prompt = "E: manejar el camión" if world.truck.driver == 0 else "E: subirse al camión"
 				"truck_ride":
 					prompt = "E: subirse al camión"
+				"computer":
+					var user := world.computer_user()
+					if user == 0:
+						prompt = "E: usar la computadora (venderle al Flaco)"
+					else:
+						prompt = "Ocupada: la está usando %s" % world.player_names.get(user, "otro")
 
 func _use_hands(_delta: float) -> void:
 	var cam := camera.global_transform
@@ -447,7 +495,9 @@ func _use_hands(_delta: float) -> void:
 	var kind: String = look.get("kind", "")
 	if not can_control() or not Input.is_action_just_pressed("interact"):
 		return
-	if kind == "button":
+	if kind == "button" and look["button"] == "computer":
+		world.request_computer("sit")
+	elif kind == "button":
 		world.request_seat(look["button"])
 	elif kind == "entity":
 		world.request_grab((look["entity"] as Entity).entity_id)

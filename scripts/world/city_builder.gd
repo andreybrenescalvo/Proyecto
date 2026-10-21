@@ -52,6 +52,9 @@ const WAREHOUSE := Vector3(-290.0, 0.0, 0.0)
 const WAREHOUSE_SIZE := Vector2(24.0, 18.0)
 const WAREHOUSE_ZONE := Rect2(-296.0, -5.0, 15.0, 10.0)
 const WAREHOUSE_DOOR := Vector2(7.0, 5.2)      # ancho y alto del portón (en la pared de +X)
+## La computadora del Flaco: el escritorio (contra la pared de -z) y dónde queda sentado el que la usa.
+const COMPUTER_DESK := Vector3(-292.0, 0.0, -8.15)
+const COMPUTER_SEAT := Vector3(-292.0, 0.0, -7.25)
 
 static func in_warehouse_zone(p: Vector3) -> bool:
 	return WAREHOUSE_ZONE.has_point(Vector2(p.x, p.z))
@@ -1127,7 +1130,6 @@ static func _warehouse(b: MeshBatch, root: Node3D) -> void:
 	var h := 7.0
 	var brick := _tex("brick", Color(0.8, 0.72, 0.68), 1.0)
 	var metal := _tex("metal", Color(0.5, 0.52, 0.5), 0.8, 0.6)
-	var inner := _tex("concrete", Color(0.75, 0.74, 0.72), 2.0)
 	# Piso, paredes (la de adelante con el portón) y techo.
 	_flat(b, c.x - sx, c.x + sx, c.z - sz, c.z + sz, 0.03, 0.03, _tex("concrete", Color(0.62, 0.62, 0.6), 2.5, 0.9))
 	b.solid(Vector3(0.3, h, WAREHOUSE_SIZE.y), _p(c.x - sx, c.z, h * 0.5), brick)
@@ -1138,10 +1140,18 @@ static func _warehouse(b: MeshBatch, root: Node3D) -> void:
 	for s in [-1.0, 1.0]:
 		b.solid(Vector3(0.3, h, side_w), _p(c.x + sx, c.z + s * (door.x * 0.5 + side_w * 0.5), h * 0.5), brick)
 	b.solid(Vector3(0.3, h - door.y, door.x), _p(c.x + sx, c.z, door.y + (h - door.y) * 0.5), brick)
-	# Por dentro, las paredes revocadas (cajas finitas pegadas a cada pared).
-	b.box(Vector3(0.02, h - 0.2, WAREHOUSE_SIZE.y - 0.4), _p(c.x - sx + 0.16, c.z, h * 0.5), inner)
+	# Por dentro, las paredes pintadas en dos colores (abajo verde de taller, arriba crema).
+	var low := _tex("paint", Color(0.42, 0.55, 0.48), 2.0, 0.8)
+	var high := _tex("paint", Color(0.93, 0.89, 0.8), 2.0, 0.9)
+	b.box(Vector3(0.02, 1.3, WAREHOUSE_SIZE.y - 0.4), _p(c.x - sx + 0.16, c.z, 0.65), low)
+	b.box(Vector3(0.02, h - 1.5, WAREHOUSE_SIZE.y - 0.4), _p(c.x - sx + 0.16, c.z, 1.3 + (h - 1.5) * 0.5), high)
 	for s in [-1.0, 1.0]:
-		b.box(Vector3(WAREHOUSE_SIZE.x - 0.4, h - 0.2, 0.02), _p(c.x, c.z + s * (sz - 0.16), h * 0.5), inner)
+		b.box(Vector3(WAREHOUSE_SIZE.x - 0.4, 1.3, 0.02), _p(c.x, c.z + s * (sz - 0.16), 0.65), low)
+		b.box(Vector3(WAREHOUSE_SIZE.x - 0.4, h - 1.5, 0.02), _p(c.x, c.z + s * (sz - 0.16), 1.3 + (h - 1.5) * 0.5), high)
+	for s in [-1.0, 1.0]:
+		var zc: float = c.z + s * (WAREHOUSE_DOOR.x * 0.5 + side_w * 0.5)
+		b.box(Vector3(0.02, 1.3, side_w - 0.3), _p(c.x + sx - 0.16, zc, 0.65), low)
+		b.box(Vector3(0.02, h - 1.5, side_w - 0.3), _p(c.x + sx - 0.16, zc, 1.3 + (h - 1.5) * 0.5), high)
 	b.box(Vector3(WAREHOUSE_SIZE.x + 0.6, 0.25, WAREHOUSE_SIZE.y + 0.6), _p(c.x, c.z, h + 0.12), metal)
 	b.roof(Vector3(WAREHOUSE_SIZE.x + 0.8, 2.0, WAREHOUSE_SIZE.y + 0.8), _p(c.x, c.z, h + 0.25), _tex("metal", Color(0.4, 0.42, 0.4), 0.8, 0.5))
 	b.collider(Vector3(WAREHOUSE_SIZE.x, 0.3, WAREHOUSE_SIZE.y), _p(c.x, c.z, h + 0.1))
@@ -1151,14 +1161,19 @@ static func _warehouse(b: MeshBatch, root: Node3D) -> void:
 	b.box(Vector3(0.12, 1.4, 7.0), _p(c.x + sx + 0.2, c.z, h - 0.9), Mats.color(Color(0.1, 0.1, 0.12), 0.6))
 	_label(root, "GALPÓN 7", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(c.x + sx + 0.28, h - 0.9, c.z)), 150, Color(1.0, 0.75, 0.2), 160.0)
 	# Adentro: luces, el rectángulo donde se deja el camión, estanterías, una mesa con plata.
-	for lx in [-6.0, 4.0]:
+	# Tubos de luz colgados (dos filas) y tres luces de verdad.
+	for lx in [-8.0, -2.5, 3.0, 8.5]:
+		for lz in [-4.0, 4.0]:
+			b.box(Vector3(1.6, 0.08, 0.22), _p(c.x + lx, c.z + lz, h - 1.2), Mats.color(Color(0.95, 0.97, 1.0), 0.5, 3.0), MeshBatch.GLOW)
+			for e in [-0.7, 0.7]:
+				b.box(Vector3(0.02, 1.0, 0.02), _p(c.x + lx + e, c.z + lz, h - 0.7), Mats.color(Color(0.2, 0.2, 0.2), 0.6), MeshBatch.DETAIL)
+	for lx in [-7.0, 0.0, 7.0]:
 		var light := OmniLight3D.new()
-		light.light_color = Color(1.0, 0.85, 0.6)
-		light.light_energy = 2.2
-		light.omni_range = 13.0
-		light.position = Vector3(c.x + lx, h - 1.0, c.z)
+		light.light_color = Color(0.98, 0.94, 0.85)
+		light.light_energy = 2.0
+		light.omni_range = 11.0
+		light.position = Vector3(c.x + lx, h - 1.6, c.z)
 		root.add_child(light)
-		b.box(Vector3(1.2, 0.1, 0.4), _p(c.x + lx, c.z, h - 0.5), Mats.color(Color(1.0, 0.9, 0.7), 0.5, 3.0), MeshBatch.GLOW)
 	var yellow := Mats.color(Color(0.95, 0.78, 0.15), 0.7, 0.4)
 	var zr := WAREHOUSE_ZONE
 	b.box(Vector3(zr.size.x, 0.01, 0.2), _p(zr.get_center().x, zr.position.y, 0.04), yellow)
@@ -1167,16 +1182,11 @@ static func _warehouse(b: MeshBatch, root: Node3D) -> void:
 	b.box(Vector3(0.2, 0.01, zr.size.y), _p(zr.end.x, zr.get_center().y, 0.04), yellow)
 	var floor_text := _label(root, "DEJEN EL CAMIÓN ACÁ", Transform3D(Basis.from_euler(Vector3(-PI * 0.5, PI * 0.5, 0)), Vector3(zr.get_center().x + 3.0, 0.05, zr.get_center().y)), 96, Color(0.95, 0.78, 0.15, 0.9), 60.0)
 	floor_text.outline_size = 0
-	var shelf := _tex("metal", Color(0.3, 0.45, 0.65), 0.8, 0.5)
-	var crate := _tex("wood", Color(0.85, 0.75, 0.6), 1.0)
-	for i in 4:
-		var px := c.x - sx + 3.0 + i * 5.0
-		var pz := c.z + sz - 1.2
-		b.solid(Vector3(4.0, 3.0, 1.0), _p(px, pz, 1.5), shelf)
-		for k in 3:
-			b.box(Vector3(0.9, 0.7, 0.8), _p(px - 1.2 + k * 1.2, pz, 0.6 + (i + k) % 3 * 1.0), crate, MeshBatch.DETAIL)
-	b.solid(Vector3(2.0, 0.9, 1.0), _p(c.x - sx + 2.5, c.z - sz + 2.0, 0.45), _tex("wood", Color(0.6, 0.45, 0.3), 1.0))
-	b.box(Vector3(0.4, 0.15, 0.3), _p(c.x - sx + 2.3, c.z - sz + 2.0, 0.98), Mats.color(Color(0.3, 0.55, 0.3), 0.8))
+	_warehouse_interior(b, root)
+	# Cartel de la empresa en la fachada (de día es un negocio de verdad).
+	b.box(Vector3(0.1, 1.5, 4.4), _p(c.x + sx + 0.2, c.z + door.x * 0.5 + 2.6, 3.1), Mats.color(Color(0.95, 0.5, 0.15), 0.7, 0.2))
+	var biz := _label(root, "MUDANCEROS TRUCHOS\nMudanzas y reparaciones del hogar\nTel. 555-0107", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(c.x + sx + 0.27, 3.1, c.z + door.x * 0.5 + 2.6)), 44, Color(0.1, 0.08, 0.06), 70.0)
+	biz.outline_size = 0
 	# Patio de entrada, cerco con el portón abierto y cartel en la calle.
 	_flat(b, c.x + sx, IND_X - HALF, c.z - door.x * 0.5 - 4.0, c.z + door.x * 0.5 + 4.0, 0.03, 0.03, _tex("concrete", Color(0.6, 0.6, 0.6), 2.5))
 	var fence_x := IND_X - HALF - 1.0
@@ -1208,6 +1218,199 @@ static func _sign(b: MeshBatch, root: Node3D, p: Vector3, facing: Vector3, text:
 	b.solid(Vector3(0.15, 3.2, 0.15), _at(t, Vector3(0, 1.6, 0)), _tex("metal", Color(0.3, 0.3, 0.3), 1.0))
 	b.box(Vector3(2.6, 0.8, 0.1), _at(t, Vector3(0, 3.0, 0)), Mats.color(Color(0.1, 0.1, 0.12), 0.6))
 	_label(root, text, _at(t, Vector3(0, 3.0, 0.07)), 44, Color(1.0, 0.75, 0.2), 70.0)
+
+## Por dentro, el galpón aparenta ser el taller de una empresa de mudanzas y reparaciones: banco
+## de trabajo con herramientas colgadas, estanterías con pintura y materiales, escaleras, cajas de
+## mudanza y, en un rincón, la oficinita con la computadora donde se le vende al Flaco.
+static func _warehouse_interior(b: MeshBatch, root: Node3D) -> void:
+	var c := WAREHOUSE
+	var sx := WAREHOUSE_SIZE.x * 0.5
+	var sz := WAREHOUSE_SIZE.y * 0.5
+	var wood := _tex("wood", Color(0.85, 0.72, 0.55), 1.0)
+	var dark_wood := _tex("wood", Color(0.5, 0.38, 0.28), 1.0)
+	var steel := _tex("metal", Color(0.55, 0.57, 0.6), 0.8, 0.5)
+	var blue_steel := _tex("metal", Color(0.3, 0.45, 0.65), 0.8, 0.5)
+	var black := Mats.color(Color(0.08, 0.08, 0.09), 0.6)
+	var cardboard := _tex("paint", Color(0.72, 0.55, 0.36), 1.0, 0.95)
+	var tape := Mats.color(Color(0.55, 0.4, 0.22), 0.5)
+	var west := c.x - sx + 0.17
+	var wz := c.z + sz - 0.16
+	var sw := c.z - sz + 0.16
+	# --- Taller, contra la pared del fondo (+z): tablero con herramientas y banco de trabajo.
+	var bx := c.x - sx + 5.5
+	b.box(Vector3(6.0, 2.0, 0.05), _p(bx, wz - 0.03, 2.1), _tex("wood", Color(0.95, 0.85, 0.65), 0.6))
+	var tool_colors := [Color(0.8, 0.15, 0.1), Color(0.95, 0.7, 0.1), Color(0.15, 0.3, 0.6), Color(0.2, 0.2, 0.22)]
+	for i in 10:
+		var tx := bx - 2.6 + i * 0.58
+		var ty := 1.75 + (i % 2) * 0.75
+		var col := Mats.color(tool_colors[i % tool_colors.size()], 0.6)
+		match i % 4:
+			0:   # martillo
+				b.box(Vector3(0.04, 0.38, 0.04), _p(tx, wz - 0.08, ty), dark_wood, MeshBatch.DETAIL)
+				b.box(Vector3(0.18, 0.07, 0.06), _p(tx, wz - 0.08, ty + 0.2), black, MeshBatch.DETAIL)
+			1:   # llave
+				b.box(Vector3(0.05, 0.36, 0.02), _p(tx, wz - 0.07, ty), steel, MeshBatch.DETAIL)
+				b.box(Vector3(0.11, 0.06, 0.02), _p(tx, wz - 0.07, ty + 0.19), steel, MeshBatch.DETAIL)
+			2:   # serrucho
+				b.box(Vector3(0.46, 0.14, 0.01), _p(tx, wz - 0.07, ty), steel, MeshBatch.DETAIL)
+				b.box(Vector3(0.12, 0.12, 0.04), _p(tx + 0.27, wz - 0.07, ty + 0.02), col, MeshBatch.DETAIL)
+			_:   # destornillador
+				b.box(Vector3(0.03, 0.2, 0.03), _p(tx, wz - 0.07, ty - 0.08), steel, MeshBatch.DETAIL)
+				b.box(Vector3(0.05, 0.13, 0.05), _p(tx, wz - 0.07, ty + 0.08), col, MeshBatch.DETAIL)
+	b.solid(Vector3(6.0, 0.08, 1.0), _p(bx, wz - 0.55, 0.92), wood)
+	b.box(Vector3(5.8, 0.05, 0.9), _p(bx, wz - 0.55, 0.3), wood)
+	for lx in [-2.9, 2.9]:
+		for lz in [-0.42, 0.42]:
+			b.box(Vector3(0.08, 0.88, 0.08), _p(bx + lx, wz - 0.55 + lz, 0.44), steel)
+	b.box(Vector3(0.6, 0.3, 0.3), _p(bx - 2.0, wz - 0.5, 1.11), _tex("metal", Color(0.8, 0.15, 0.1), 0.5, 0.4))   # caja de herramientas
+	b.box(Vector3(0.22, 0.18, 0.22), _p(bx + 1.8, wz - 0.75, 1.05), steel)                                            # morsa
+	b.box(Vector3(0.08, 0.1, 0.3), _p(bx + 1.8, wz - 0.75, 1.18), steel, MeshBatch.DETAIL)
+	b.box(Vector3(0.28, 0.2, 0.07), _p(bx, wz - 0.6, 1.07), _tex("plastic", Color(0.95, 0.7, 0.1), 1.0, 0.5))      # taladro
+	b.box(Vector3(0.06, 0.16, 0.07), _p(bx - 0.08, wz - 0.6, 0.96), black, MeshBatch.DETAIL)
+	var paints := [Color(0.95, 0.95, 0.92), Color(0.7, 0.2, 0.15), Color(0.2, 0.45, 0.7), Color(0.9, 0.75, 0.3)]
+	for i in 4:
+		b.cylinder(0.12, 0.24, _p(bx - 0.9 + i * 0.3, wz - 0.4, 1.08), _tex("metal", paints[i], 0.4, 0.4), 10, MeshBatch.DETAIL)
+	# Estanterías de materiales (latas de pintura, baldes, cables y cajas rotuladas).
+	for k in 2:
+		var shx := c.x - sx + 11.0 + k * 3.4
+		b.solid(Vector3(3.0, 2.6, 0.7), _p(shx, wz - 0.4, 1.3), blue_steel)
+		for lv in 3:
+			for j in 4:
+				var y := 0.35 + lv * 0.85
+				var px := shx - 1.1 + j * 0.72
+				if (j + lv + k) % 3 == 0:
+					b.box(Vector3(0.6, 0.38, 0.5), _p(px, wz - 0.82, y + 0.2), cardboard, MeshBatch.DETAIL)
+				elif (j + lv) % 3 == 1:
+					b.cylinder(0.14, 0.28, _p(px, wz - 0.82, y + 0.15), _tex("metal", paints[(j + k) % 4], 0.4, 0.4), 10, MeshBatch.DETAIL)
+				else:
+					b.cylinder(0.17, 0.12, _p(px, wz - 0.82, y + 0.07), Mats.color(Color(0.15, 0.15, 0.15), 0.8), 12, MeshBatch.DETAIL)
+		_label(root, "MATERIALES" if k == 0 else "PINTURERÍA", Transform3D(Basis(Vector3.UP, PI), Vector3(shx, 2.75, wz - 0.78)), 36, Color(1, 0.95, 0.85), 30.0)
+	# Escalera de pintor abierta y placas de yeso apoyadas contra la pared.
+	var lx0 := c.x + sx - 3.0
+	for s in [-1.0, 1.0]:
+		b.box(Vector3(0.5, 2.1, 0.06), Transform3D(Basis(Vector3.RIGHT, s * 0.22), Vector3(lx0, 1.02, wz - 1.4 + s * 0.24)), wood)
+	for i in 5:
+		b.box(Vector3(0.5, 0.04, 0.1), _p(lx0, wz - 1.4 + 0.24 - i * 0.02, 0.35 + i * 0.38), wood, MeshBatch.DETAIL)
+	for i in 4:
+		b.box(Vector3(1.2, 2.4, 0.03), Transform3D(Basis(Vector3.RIGHT, -0.12), Vector3(c.x + sx - 5.5 - i * 0.03, 1.2, wz - 0.25 - i * 0.04)), _tex("concrete", Color(0.92, 0.92, 0.9), 2.0))
+	# --- Pared oeste: el cartel de la empresa, cajas de mudanza, la zorra y mantas.
+	b.box(Vector3(0.06, 1.6, 7.0), _p(west, c.z, 4.6), Mats.color(Color(0.95, 0.5, 0.15), 0.7))
+	for l in [_label(root, "MUDANCEROS TRUCHOS", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(west + 0.05, 4.85, c.z)), 120, Color(0.1, 0.08, 0.06), 60.0),
+			_label(root, "Mudanzas y reparaciones del hogar", Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(west + 0.05, 4.2, c.z)), 60, Color(0.1, 0.08, 0.06), 60.0)]:
+		(l as Label3D).outline_size = 0
+	var stacks := [[-4.6, 3], [-3.7, 2], [3.6, 3], [4.5, 2], [-4.6, 1]]
+	for i in stacks.size():
+		var st: Array = stacks[i]
+		for lv in int(st[1]):
+			var p := Vector3(west + 0.55 + (i % 2) * 0.1, 0.3 + lv * 0.6, c.z + float(st[0]) + (lv % 2) * 0.08)
+			if i == 4:
+				p.x += 0.9
+			b.solid(Vector3(0.8, 0.58, 0.8), _p(p.x, p.z, p.y), cardboard)
+			b.box(Vector3(0.82, 0.6, 0.12), _p(p.x, p.z, p.y), tape, MeshBatch.DETAIL)
+	b.box(Vector3(0.05, 1.3, 0.5), Transform3D(Basis(Vector3.FORWARD, 0.15), Vector3(west + 0.5, 0.68, c.z + 1.8)), steel)   # zorra
+	b.box(Vector3(0.5, 0.04, 0.45), _p(west + 0.62, c.z + 1.8, 0.06), steel, MeshBatch.DETAIL)
+	for i in 3:
+		b.box(Vector3(0.9, 0.12, 0.7), _p(west + 0.6, c.z - 1.6, 0.06 + i * 0.12), _tex("fabric", Color(0.25, 0.35, 0.6), 0.6, 1.0))
+	# --- Rincón de la oficina (pared de adelante, -z): escritorio, computadora, silla, archivero.
+	var desk := COMPUTER_DESK
+	b.solid(Vector3(2.4, 0.06, 1.0), _p(desk.x, desk.z, 0.76), dark_wood)
+	for lx in [-1.1, 1.1]:
+		b.box(Vector3(0.06, 0.74, 0.9), _p(desk.x + lx, desk.z, 0.37), dark_wood)
+	b.box(Vector3(0.5, 0.6, 0.85), _p(desk.x + 0.75, desk.z, 0.4), dark_wood)            # cajonera
+	# Monitor viejo (de tubo), teclado, mouse y la torre abajo.
+	b.box(Vector3(0.52, 0.44, 0.45), _p(desk.x, desk.z - 0.15, 1.02), _tex("plastic", Color(0.85, 0.83, 0.76), 1.0, 0.5))
+	b.box(Vector3(0.44, 0.33, 0.02), _p(desk.x, desk.z + 0.08, 1.04), Mats.color(Color(0.35, 0.55, 0.85), 0.3, 1.2), MeshBatch.GLOW)
+	b.box(Vector3(0.46, 0.03, 0.16), _p(desk.x, desk.z + 0.3, 0.8), _tex("plastic", Color(0.82, 0.8, 0.74), 1.0, 0.5))
+	b.box(Vector3(0.07, 0.03, 0.11), _p(desk.x + 0.36, desk.z + 0.3, 0.8), _tex("plastic", Color(0.82, 0.8, 0.74), 1.0, 0.5), MeshBatch.DETAIL)
+	b.box(Vector3(0.2, 0.42, 0.45), _p(desk.x - 0.75, desk.z - 0.1, 0.22), _tex("plastic", Color(0.85, 0.83, 0.76), 1.0, 0.5))
+	b.box(Vector3(0.25, 0.35, 0.03), _p(desk.x - 0.7, desk.z + 0.1, 0.96), Mats.color(Color(0.95, 0.95, 0.9), 0.8), MeshBatch.DETAIL)  # papeles
+	b.cylinder(0.05, 0.1, _p(desk.x + 0.65, desk.z + 0.1, 0.84), Mats.color(Color(0.9, 0.3, 0.2), 0.6), 10, MeshBatch.DETAIL)        # taza
+	# Silla de escritorio (sin colisión: el que se sienta se acomoda solo).
+	var chair := COMPUTER_SEAT
+	b.box(Vector3(0.5, 0.08, 0.5), _p(chair.x, chair.z, 0.48), black)
+	b.box(Vector3(0.48, 0.55, 0.07), _p(chair.x, chair.z + 0.25, 0.82), black)
+	b.cylinder(0.04, 0.4, _p(chair.x, chair.z, 0.25), steel, 8)
+	b.box(Vector3(0.55, 0.04, 0.08), _p(chair.x, chair.z, 0.04), steel, MeshBatch.DETAIL)
+	b.box(Vector3(0.08, 0.04, 0.55), _p(chair.x, chair.z, 0.04), steel, MeshBatch.DETAIL)
+	# Lámpara de escritorio (luz de verdad, chica y cálida).
+	b.box(Vector3(0.12, 0.35, 0.12), _p(desk.x - 1.0, desk.z - 0.25, 0.95), black, MeshBatch.DETAIL)
+	b.box(Vector3(0.22, 0.1, 0.22), _p(desk.x - 1.0, desk.z - 0.1, 1.15), Mats.color(Color(1, 0.85, 0.6), 0.5, 2.0), MeshBatch.GLOW)
+	var lamp := OmniLight3D.new()
+	lamp.light_color = Color(1.0, 0.8, 0.55)
+	lamp.light_energy = 1.2
+	lamp.omni_range = 4.0
+	lamp.position = Vector3(desk.x - 0.9, 1.3, desk.z + 0.1)
+	root.add_child(lamp)
+	# La computadora se usa con E (la mira el jugador).
+	var pc := StaticBody3D.new()
+	pc.name = "Computadora"
+	pc.collision_layer = Config.L_WORLD
+	pc.collision_mask = 0
+	pc.position = Vector3(desk.x, 1.0, desk.z)
+	pc.set_meta("interact", "computer")
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.9, 0.55, 0.9)
+	shape.shape = box
+	pc.add_child(shape)
+	root.add_child(pc)
+	# Archivero, corcho con encargos, calendario y reloj.
+	b.solid(Vector3(0.5, 1.3, 0.6), _p(desk.x - 1.75, sw + 0.32, 0.65), steel)
+	for i in 4:
+		b.box(Vector3(0.42, 0.02, 0.02), _p(desk.x - 1.75, sw + 0.63, 0.25 + i * 0.32), black, MeshBatch.DETAIL)
+	b.box(Vector3(1.4, 0.9, 0.03), _p(desk.x, sw + 0.02, 1.75), _tex("wood", Color(0.75, 0.55, 0.35), 0.3))
+	var notes := [Color(1, 0.95, 0.5), Color(0.95, 0.95, 0.95), Color(0.6, 0.85, 1.0), Color(1, 0.7, 0.75)]
+	for i in 6:
+		b.box(Vector3(0.18, 0.2, 0.01), _p(desk.x - 0.5 + (i % 3) * 0.45, sw + 0.04, 1.6 + (i / 3) * 0.32), Mats.color(notes[i % 4], 0.9), MeshBatch.DETAIL)
+	b.box(Vector3(0.5, 0.6, 0.01), _p(desk.x + 1.2, sw + 0.03, 1.7), Mats.color(Color(0.97, 0.97, 0.95), 0.9))
+	var month := _label(root, "OCTUBRE", Transform3D(Basis(), Vector3(desk.x + 1.2, 1.92, sw + 0.04)), 13, Color(0.75, 0.1, 0.1), 15.0)
+	month.outline_size = 0
+	b.cylinder(0.2, 0.04, Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(desk.x - 1.75, 2.4, sw + 0.03)), Mats.color(Color(0.95, 0.95, 0.92), 0.6), 16)
+	# --- Rincón de descanso: sillón viejo, mesita, heladera y cafetera.
+	var sofa := Vector3(c.x + 3.2, 0, sw + 0.55)
+	var sofa_mat := _tex("fabric", Color(0.45, 0.3, 0.2), 0.6, 1.0)
+	b.solid(Vector3(2.0, 0.45, 0.85), _p(sofa.x, sofa.z, 0.22), sofa_mat)
+	b.box(Vector3(2.0, 0.55, 0.2), _p(sofa.x, sofa.z - 0.33, 0.7), sofa_mat)
+	for s in [-1.0, 1.0]:
+		b.box(Vector3(0.2, 0.3, 0.85), _p(sofa.x + s * 0.95, sofa.z, 0.55), sofa_mat)
+	b.box(Vector3(2.6, 0.01, 1.8), _p(sofa.x, sofa.z + 0.9, 0.045), _tex("fabric", Color(0.55, 0.2, 0.18), 0.5, 1.0))
+	b.solid(Vector3(0.9, 0.4, 0.5), _p(sofa.x, sofa.z + 1.3, 0.2), wood)
+	b.box(Vector3(0.18, 0.12, 0.12), _p(sofa.x - 0.2, sofa.z + 1.3, 0.46), Mats.color(Color(0.85, 0.55, 0.15), 0.4), MeshBatch.DETAIL)
+	var fridge := Vector3(c.x + 5.2, 0, sw + 0.4)
+	b.solid(Vector3(0.7, 1.6, 0.65), _p(fridge.x, fridge.z, 0.8), _tex("plastic", Color(0.92, 0.92, 0.9), 1.0, 0.4))
+	b.box(Vector3(0.04, 0.4, 0.04), _p(fridge.x + 0.28, fridge.z + 0.34, 1.0), steel, MeshBatch.DETAIL)
+	b.solid(Vector3(1.0, 0.9, 0.55), _p(fridge.x + 1.0, fridge.z, 0.45), wood)
+	b.box(Vector3(0.22, 0.3, 0.2), _p(fridge.x + 0.9, fridge.z, 1.05), black, MeshBatch.DETAIL)
+	b.box(Vector3(0.05, 0.05, 0.05), _p(fridge.x + 0.9, fridge.z + 0.11, 1.12), Mats.color(Color(1, 0.2, 0.1), 0.5, 2.0), MeshBatch.GLOW)
+	# --- Más cosas de obra: pallets con bolsas de cemento y cerámicos, carretilla, alfombras
+	# enrolladas, matafuego y carteles de seguridad.
+	var pallet := _tex("wood", Color(0.75, 0.62, 0.45), 1.0)
+	var bag := _tex("fabric", Color(0.75, 0.72, 0.66), 0.5, 1.0)
+	var px0 := c.x + sx - 2.0
+	for k in 2:
+		var pz := c.z + sz - 3.4 - k * 1.5
+		b.solid(Vector3(1.2, 0.14, 1.0), _p(px0, pz, 0.07), pallet)
+		for lv in 3 - k:
+			for j in 2:
+				b.box(Vector3(0.55, 0.16, 0.85), _p(px0 - 0.28 + j * 0.56, pz, 0.22 + lv * 0.17), bag if k == 0 else _tex("tiles", Color(0.85, 0.7, 0.55), 0.4, 0.4))
+	var barrow := Transform3D(Basis(Vector3.UP, 0.6), Vector3(c.x + sx - 4.2, 0, c.z + sz - 3.2))
+	b.box(Vector3(0.65, 0.3, 0.95), _at(barrow, Vector3(0, 0.55, 0), Vector3(-8, 0, 0)), _tex("metal", Color(0.85, 0.3, 0.1), 0.6, 0.5))
+	b.cylinder(0.18, 0.08, _at(barrow, Vector3(0, 0.18, 0.55), Vector3(0, 0, 90)), black, 10, MeshBatch.DETAIL)
+	for s in [-1.0, 1.0]:
+		b.box(Vector3(0.04, 0.04, 1.3), _at(barrow, Vector3(s * 0.25, 0.45, -0.3), Vector3(10, 0, 0)), steel, MeshBatch.DETAIL)
+	for i in 3:
+		b.cylinder(0.16, 1.9, Transform3D(Basis(Vector3.FORWARD, 0.08), Vector3(west + 0.35, 0.95, c.z - 4.2 - i * 0.36)), _tex("fabric", [Color(0.6, 0.2, 0.2), Color(0.3, 0.4, 0.3), Color(0.55, 0.45, 0.3)][i], 0.4, 1.0), 10)
+	var red := Mats.color(Color(0.8, 0.08, 0.06), 0.4)
+	b.cylinder(0.09, 0.5, _p(c.x + sx - 0.35, c.z + WAREHOUSE_DOOR.x * 0.5 + 0.6, 0.55), red, 10)
+	b.box(Vector3(0.05, 0.1, 0.05), _p(c.x + sx - 0.35, c.z + WAREHOUSE_DOOR.x * 0.5 + 0.6, 0.85), black, MeshBatch.DETAIL)
+	var signs := [["PROHIBIDO FUMAR", Color(0.8, 0.1, 0.08), Color(1, 1, 1), Transform3D(Basis(Vector3.UP, -PI * 0.5), Vector3(c.x + sx - 0.18, 2.6, c.z + WAREHOUSE_DOOR.x * 0.5 + 1.8))],
+			["SEGURIDAD ANTE TODO", Color(0.95, 0.78, 0.15), Color(0.1, 0.1, 0.1), Transform3D(Basis(Vector3.UP, PI), Vector3(c.x - 1.0, 2.9, wz - 0.03))],
+			["USE CASCO Y GUANTES", Color(0.15, 0.4, 0.75), Color(1, 1, 1), Transform3D(Basis(), Vector3(c.x - 6.0, 2.6, sw + 0.03))]]
+	for sg: Array in signs:
+		var t: Transform3D = sg[3]
+		b.box(Vector3(1.5, 0.45, 0.02), t, Mats.color(sg[1], 0.6))
+		var l := _label(root, sg[0], t.translated_local(Vector3(0, 0, 0.02)), 30, sg[2], 30.0)
+		l.outline_size = 0
 
 # ---------------------------------------------------------------- bordes
 

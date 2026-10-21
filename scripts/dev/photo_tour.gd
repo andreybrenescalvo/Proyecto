@@ -27,6 +27,11 @@ func _ready() -> void:
 		await _drive_out()
 		get_tree().quit(0)
 		return
+	if OS.get_cmdline_user_args().has("--tour-warehouse"):
+		await _warehouse()
+		print("TOUR OK: %d fotos en %s" % [_n, out_dir])
+		get_tree().quit(0)
+		return
 	if OS.get_cmdline_user_args().has("--tour-city"):
 		await _city()
 		print("TOUR OK: %d fotos en %s" % [_n, out_dir])
@@ -99,6 +104,21 @@ func _city() -> void:
 	await _shot_from(Vector3(-175.0, 0.1, 76.0), Vector3(-200.0, 2.0, 81.0), "paso_a_nivel")
 	await _shot_from(Vector3(-258.0, 0.1, 30.0), Vector3(-280.0, 3.0, 0.0), "galpon_7")
 	await _shot_from(Vector3(-280.5, 0.1, 2.0), Vector3(-294.0, 1.0, -2.0), "galpon_7_por_dentro")
+
+## Adentro del Galpón 7: el taller, la oficina y un mudancero escribiendo en la computadora.
+func _warehouse() -> void:
+	var c := CityBuilder.WAREHOUSE
+	await _shot_from(Vector3(c.x + 10.5, 0.1, c.z + 1.0), Vector3(c.x - 6.0, 1.5, c.z + 3.0), "galpon_taller")
+	await _shot_from(Vector3(c.x + 9.0, 0.1, c.z - 2.0), Vector3(c.x - 6.0, 1.0, c.z - 7.0), "galpon_oficina")
+	await _shot_from(Vector3(c.x - 3.0, 0.1, c.z - 1.0), Vector3(c.x - 12.0, 3.5, c.z), "galpon_cartel")
+	var typist := CharacterModel.create(CharacterModel.PLAYER_MODELS[1])
+	world.add_child(typist)
+	typist.global_position = CityBuilder.COMPUTER_SEAT + Vector3(0, Player.COMPUTER_SEAT_HEIGHT, 0)
+	typist.play("Sitting_Idle")
+	typist.set_typing(true)
+	await _shot_from(CityBuilder.COMPUTER_SEAT + Vector3(1.6, 0.0, 0.9), CityBuilder.COMPUTER_DESK + Vector3(0, 0.9, 0.3), "escribiendo")
+	await _shot_from(CityBuilder.COMPUTER_SEAT + Vector3(-1.4, 0.0, 0.3), CityBuilder.COMPUTER_SEAT + Vector3(0, 0.8, -0.3), "escribiendo_de_costado")
+	typist.queue_free()
 
 ## Foto desde una cámara en el aire.
 func _aerial(from: Vector3, target: Vector3, label: String) -> void:

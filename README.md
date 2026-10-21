@@ -65,12 +65,22 @@ la mudanza de día, más casas, arte y sonido de verdad.
   faros que alumbran y sombra. Uno se sube a manejar (E en la puerta del conductor, del lado de
   la calle) y los demás de acompañantes (E en la puerta de la vereda o en la rampa de atrás).
   El motor hace ruido: arrancar al lado de la casa también se oye.
-- **El Galpón 7 y el reducidor:** la noche termina cuando dejan el camión parado adentro del
-  Galpón 7 (en la zona industrial, a unos 400 m manejando). Ahí "el Flaco" les compra solo
-  **todo lo que hay en la caja**. Arriba de la pantalla, una flecha marca hacia dónde queda y a
-  cuántos metros. Reglas:
-  - **Sin la cuota, no hay trato:** si llegan al galpón con menos, el encargo se cancela y no cobran nada.
-  - **Si amanece antes de llegar**, hay que devolver todo: se pierde lo cargado.
+- **El Galpón 7 y el reducidor:** su base, en la zona industrial (a unos 400 m manejando).
+  Por fuera y por dentro aparenta ser el taller de una empresa de **mudanzas y reparaciones del
+  hogar**: banco de trabajo, herramientas colgadas, estanterías con pintura y materiales,
+  escaleras, cajas de mudanza, un sillón viejo y una oficinita. Arriba de la pantalla, una flecha
+  marca hacia dónde queda y a cuántos metros.
+- **La computadora del Flaco:** con el camión adentro del galpón, uno se sienta en el escritorio
+  de la oficina (**E**) y su mudancero se pone a teclear. En la pantalla se abre una computadora
+  vieja con el **Mercado del Flaco**: la lista de lo que hay en la caja del camión, con lo que paga
+  por cada cosa (menos si está golpeada). Se vende de a una o todo junto, y al final se aprieta
+  **Cerrar la noche**. Los demás ven al compañero sentado escribiendo y les llega un aviso por
+  cada venta. (El ícono de la tienda de herramientas ya está, para más adelante.) Reglas:
+  - **Se cobra al cerrar la noche.** Si lo vendido no llega a la cuota, el encargo se cancela y
+    no cobran nada (la computadora lo avisa bien claro antes de cerrar).
+  - **Si amanece** y ya le vendieron algo al Flaco, la noche se cierra sola con eso; si no le
+    vendieron nada, hay que devolver todo. Un minuto antes avisa.
+  - Lo que no vendan se pierde: la noche siguiente empieza de cero.
   - **La policía** (llega 60 s después de que Don Ramón agarra a alguien): si encuentra el camión
     todavía en el barrio, los agarra con todo. Si ya se fueron, solo detiene a los que se
     quedaron cerca de la casa (multa de $300 cada uno).
@@ -160,8 +170,9 @@ para doblar y **Espacio** como freno de mano.
 4. Arriba de la pantalla se ve cómo duerme Don Ramón. Si la barra se vacía, se despierta.
 5. Cuando tengan la cuota (o si viene la policía), todos arriba del camión y a manejar hasta el
    **Galpón 7**: la flecha de arriba marca el camino. Despacio por los lomos de burro y el paso a
-   nivel, que lo de la caja se rompe o se golpea. Adentro del galpón, paren sobre el rectángulo
-   amarillo: el Flaco revisa y les paga.
+   nivel, que lo de la caja se rompe o se golpea. Adentro del galpón, dejen el camión sobre el
+   rectángulo amarillo, siéntense en la computadora de la oficina, véndanle al Flaco y cierren la
+   noche.
 
 ## Estructura del proyecto
 
@@ -256,7 +267,8 @@ el camión, romper el jarrón, el sillón entre dos (y arrastrado por uno), que 
 despierte, persiga y eche a alguien, subirse a manejar con un acompañante, arrancar, frenar,
 bajarse, pasar un lomo de burro despacio (el televisor llega entero) y otro rápido (se rompe, y
 el joyero se golpea y vale menos), manejar por la ciudad hasta el Galpón 7 con un piloto
-automático y vender, las cuentas de la venta (sin cuota, al amanecer o con la policía no se
+automático, bajarse, sentarse en la computadora (y que otro no pueda si está ocupada), vender el
+joyero y cerrar la noche, las cuentas de la venta (sin cuota, al amanecer o con la policía no se
 cobra), empezar otra noche y que la policía los agarre con el camión en el barrio. Al final
 comprueban que el cliente vea lo mismo que el anfitrión (también el camión y quién va sentado).
 

@@ -11,7 +11,8 @@ extends Node3D
 ## partida empezada (se manda una "foto" completa) y empezar otra noche.
 
 signal game_changed                              # tiempo, botín, policía...
-signal message(text: String, important: bool)    # avisos para el HUD
+signal computer_changed(peer: int)                # alguien se sentó en la computadora del galpón (o se levantó)
+signal message(text: String, level: int)          # avisos para el HUD (MSG_SMALL, MSG_NOTICE o MSG_URGENT)
 signal players_changed
 signal night_finished(results: Dictionary)
 signal night_started
@@ -65,7 +66,7 @@ var _impact_times := {}     # entidad -> último golpe (para no repetir el ruido
 var _loaded := {}           # entidad que está en el camión -> peer al que se le acreditó
 var _eject_timers := {}     # peer -> segundos que le quedan "a salvo" después de que lo echaron
 var _engine_timer := 0.0
-var _sale_timer := 0.0       # cuánto hace que el camión está parado adentro del galpón
+var _arrived := false        # el camión ya llegó al galpón esta noche (para avisar una sola vez)
 var _arrested := {}          # peer -> true: lo agarró la policía en lo de Don Ramón
 
 # --- en cada computadora ---
@@ -113,7 +114,7 @@ func _ready() -> void:
 		_ready_peers[1] = true
 		_srv_new_night(1, 0)
 		_add_player(1, Net.player_name, HouseBuilder.SPAWNS[0], 0)
-		message.emit(_intro_text(), true)
+		message.emit(_intro_text(), MSG_NOTICE)
 	else:
 		hud.show_banner("Llegando a la casa...")
 		rpc_hello.rpc_id(1, Net.player_name)
@@ -263,7 +264,7 @@ func rpc_welcome(snap: Dictionary) -> void:
 	_apply_snapshot(snap)
 	hud.hide_banner()
 	if results.is_empty():
-		message.emit(_intro_text(), true)
+		message.emit(_intro_text(), MSG_NOTICE)
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_add_player(peer: int, pname: String, pos: Vector3, slot: int) -> void:
@@ -280,6 +281,8 @@ func rpc_teleport(pos: Vector3) -> void:
 
 func _on_peer_disconnected(peer: int) -> void:
 	_ready_peers.erase(peer)
+	if computer_user() == peer:
+		_srv_set_computer(0)
 	if truck.seats.has(peer):
 		var seats: Dictionary = truck.seats.duplicate()
 		seats.erase(peer)
@@ -369,7 +372,7 @@ func _apply_snapshot(snap: Dictionary) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_reset(snap: Dictionary) -> void:
 	_apply_snapshot(snap)
-	message.emit(_intro_text(), true)
+	message.emit(_intro_text(), MSG_NOTICE)
 
 # ================================================================ envío (anfitrión)
 
@@ -384,18 +387,24 @@ func _send_all(method: StringName, args: Array) -> void:
 	_send_clients(method, args)
 	callv(method, args)
 
-func _broadcast_message(text: String, important := false) -> void:
-	_send_all(&"rpc_message", [text, important])
+## Niveles de los avisos: chico (lista de arriba a la derecha), aviso (cuadro de abajo a la
+## izquierda) y urgente (el mismo cuadro, destacado: policía, amanecer, detenidos).
+const MSG_SMALL := 0
+const MSG_NOTICE := 1
+const MSG_URGENT := 2
+
+func _broadcast_message(text: String, level := MSG_SMALL) -> void:
+	_send_all(&"rpc_message", [text, level])
 
 func _message_to(peer: int, text: String) -> void:
 	if peer == multiplayer.get_unique_id():
-		message.emit(text, false)
+		message.emit(text, MSG_SMALL)
 	else:
-		rpc_message.rpc_id(peer, text, false)
+		rpc_message.rpc_id(peer, text, MSG_SMALL)
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_message(text: String, important: bool) -> void:
-	message.emit(text, important)
+func rpc_message(text: String, level: int) -> void:
+	message.emit(text, level)
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_sound(sound: String, pos: Vector3, volume_db: float, pitch: float) -> void:
@@ -671,6 +680,120 @@ func rpc_cargo(ids: PackedInt32Array, positions: PackedVector3Array, rots: Packe
 		if e:
 			e.set_net_local(positions[i], Quaternion(rots[i * 4], rots[i * 4 + 1], rots[i * 4 + 2], rots[i * 4 + 3]), truck)
 
+# ================================================================ la computadora del Galpón 7
+
+## Quién está sentado en la computadora (0 = nadie).
+func computer_user() -> int:
+	return int(game.get("computer", 0))
+
+## Sentarse ("sit") o levantarse ("stand") de la computadora del galpón.
+func request_computer(action: String) -> void:
+	if is_server:
+		srv_computer(1, action)
+	else:
+		rpc_req_computer.rpc_id(1, action)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_req_computer(action: String) -> void:
+	if is_server:
+		srv_computer(multiplayer.get_remote_sender_id(), action)
+
+func srv_computer(peer: int, action: String) -> bool:
+	if not players.has(peer):
+		return false
+	if action == "stand":
+		if computer_user() != peer:
+			return false
+		_srv_set_computer(0)
+		return true
+	if night_over() or computer_user() != 0 or is_seated(peer):
+		return false
+	if player_position(peer).distance_to(CityBuilder.COMPUTER_SEAT) > Config.INTERACT_RANGE + 1.0:
+		return false
+	for e: Entity in entities.values():
+		if e.holders.has(peer):
+			e.holders.erase(peer)
+			_srv_carriers_changed(e)
+	_srv_set_computer(peer)
+	return true
+
+func _srv_set_computer(peer: int) -> void:
+	_send_all(&"rpc_computer", [peer])
+	_game_dirty = true
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_computer(peer: int) -> void:
+	var before := computer_user()
+	game["computer"] = peer
+	for p: int in [before, peer]:
+		if players.has(p):
+			(players[p] as Player).set_at_computer(p == peer and peer != 0)
+	computer_changed.emit(peer)
+
+## Lo que se puede vender: lo que está en la caja del camión, si el camión está en el galpón.
+## Cada cosa es [id, nombre, precio, golpes, peer que la tiene en la mano (0 = nadie)].
+## Lo arma el anfitrión y viaja en `game`.
+func cargo_for_sale() -> Array:
+	return game.get("cargo", []) if bool(game.get("truck_in", false)) else []
+
+## Vender cosas de la caja (`ids` vacío = todo).
+func request_sell(ids: PackedInt32Array) -> void:
+	if is_server:
+		srv_sell(1, ids)
+	else:
+		rpc_req_sell.rpc_id(1, ids)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_req_sell(ids: PackedInt32Array) -> void:
+	if is_server:
+		srv_sell(multiplayer.get_remote_sender_id(), ids)
+
+func srv_sell(peer: int, ids: PackedInt32Array) -> int:
+	if peer != computer_user() or night_over() or not CityBuilder.in_warehouse_zone(truck.global_position):
+		return 0
+	var sold_now := 0
+	var names := []
+	var list: Array = game.get("sold_items", [])
+	for id: int in _loaded.keys():
+		if not ids.is_empty() and not ids.has(id):
+			continue
+		var e: Entity = entities.get(id)
+		if e == null or not e.holders.is_empty():
+			continue
+		list.append([String(e.data.get("name", "algo")), e.value(), e.dents()])
+		sold_now += e.value()
+		names.append(String(e.data.get("name", "algo")).to_lower())
+		# Ya no cuenta como "en el camión", pero el botín queda acreditado a quien lo cargó.
+		_loaded.erase(id)
+		_srv_despawn(id)
+	if sold_now == 0:
+		return 0
+	game["sold_items"] = list
+	game["sold"] = int(game.get("sold", 0)) + sold_now
+	_srv_check_truck()
+	_game_dirty = true
+	_srv_sound("coin", CityBuilder.COMPUTER_DESK + Vector3(0, 1.0, 0), 0.0)
+	_broadcast_message("El Flaco compró %s: $%d." % [", ".join(names), sold_now])
+	return sold_now
+
+## Cerrar la noche desde la computadora (cobran lo vendido, si llega a la cuota).
+func request_close_night() -> void:
+	if is_server:
+		srv_close_night(1)
+	else:
+		rpc_req_close_night.rpc_id(1)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_req_close_night() -> void:
+	if is_server:
+		srv_close_night(multiplayer.get_remote_sender_id())
+
+func srv_close_night(peer: int) -> bool:
+	if peer != computer_user() or night_over():
+		return false
+	_srv_end_night("sold")
+	return true
+
 # ================================================================ ruido
 
 ## Un ruido que puede oír el dueño. `who` es para el panel de depuración.
@@ -729,7 +852,7 @@ func rpc_dented(id: int, dents: int, pos: Vector3, lost: int) -> void:
 		e.info["dents"] = dents
 	Fx.floating_text(self, pos + Vector3(0, 0.5, 0), "-$%d" % lost)
 	if e:
-		message.emit("Se golpeó: %s (vale $%d menos)." % [String(e.data.get("name", "algo")).to_lower(), lost], false)
+		message.emit("Se golpeó: %s (vale $%d menos)." % [String(e.data.get("name", "algo")).to_lower(), lost], MSG_SMALL)
 
 func _srv_break(e: Entity) -> void:
 	var pos := e.global_position
@@ -813,10 +936,10 @@ func _on_owner_woke(blame: int) -> void:
 	var text := "¡DON RAMÓN SE DESPERTÓ!"
 	if blame != 0 and player_names.has(blame):
 		text = "¡%s despertó a Don Ramón!" % _name(blame)
-	_broadcast_message(text + " Escóndanse o salgan de ahí.", true)
+	_broadcast_message(text + " Escóndanse o salgan de ahí.", MSG_NOTICE)
 
 func _on_owner_spotted(peer: int) -> void:
-	_broadcast_message("¡Don Ramón vio a %s!" % _name(peer), false)
+	_broadcast_message("¡Don Ramón vio a %s!" % _name(peer))
 
 func _on_owner_caught(peer: int) -> void:
 	if not players.has(peer) or night_over():
@@ -840,11 +963,11 @@ func _on_owner_caught(peer: int) -> void:
 	else:
 		rpc_ejected.rpc_id(peer, pos)
 	_srv_sound("thud", pos, 6.0, 0.7)
-	_broadcast_message("¡Don Ramón agarró a %s y lo tiró a la calle!" % _name(peer), true)
+	_broadcast_message("¡Don Ramón agarró a %s y lo tiró a la calle!" % _name(peer), MSG_NOTICE)
 	if not police_coming() and not game.get("police_came", false):
 		game["police"] = Config.POLICE_DELAY
 		_game_dirty = true
-		_broadcast_message("Don Ramón llamó a la policía: llega en %d segundos. ¡Carguen lo que puedan y váyanse!" % int(Config.POLICE_DELAY), true)
+		_broadcast_message("Don Ramón llamó a la policía: llega en %d segundos. ¡Carguen lo que puedan y váyanse!" % int(Config.POLICE_DELAY), MSG_URGENT)
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_ejected(pos: Vector3) -> void:
@@ -876,8 +999,10 @@ func _srv_new_night(night: int, bank: int) -> void:
 	rpc_seats({})
 	cargo_hits = 0
 	jolts.clear()
-	_sale_timer = 0.0
+	_arrived = false
 	_arrested.clear()
+	if computer_user() != 0:
+		_send_all(&"rpc_computer", [0])
 	homeowner.reset()
 	# Cada noche Don Ramón tiene el sueño un poco más liviano.
 	homeowner.sleep_mult = 1.0 + 0.12 * (night - 1)
@@ -896,6 +1021,11 @@ func _srv_new_night(night: int, bank: int) -> void:
 		"police": -1.0,
 		"police_came": false,
 		"away": false,
+		"computer": 0,
+		"cargo": [],
+		"truck_in": false,
+		"sold": 0,
+		"sold_items": [],
 		"over": false,
 		"bank": bank,
 		"style": _rng.randi_range(1, 999999),
@@ -916,7 +1046,7 @@ func srv_next_night() -> void:
 			rpc_teleport(pos)
 		else:
 			rpc_teleport.rpc_id(peer, pos)
-	message.emit(_intro_text(), true)
+	message.emit(_intro_text(), MSG_NOTICE)
 	game_changed.emit()
 
 ## Lo que hay en el camión (se revisa cuatro veces por segundo).
@@ -945,12 +1075,24 @@ func _srv_check_truck() -> void:
 	if total != int(game["truck"]):
 		game["truck"] = total
 		_game_dirty = true
+	# La lista de la caja (para la computadora del galpón) y si el camión está adentro.
+	var cargo := []
+	for id: int in inside:
+		var e: Entity = inside[id]
+		var holder := 0 if e.holders.is_empty() else int(e.holders.keys()[0])
+		cargo.append([id, String(e.data.get("name", "algo")), e.value(), e.dents(), holder])
+	cargo.sort_custom(func(a: Array, c: Array) -> bool: return int(a[2]) > int(c[2]))
+	var truck_in := CityBuilder.in_warehouse_zone(truck.global_position)
+	if cargo != game.get("cargo", []) or truck_in != bool(game.get("truck_in", false)):
+		game["cargo"] = cargo
+		game["truck_in"] = truck_in
+		_game_dirty = true
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_loaded(pos: Vector3, value: int, what: String) -> void:
 	Sfx.play_at("coin", pos, -2.0)
 	Fx.floating_text(self, pos + Vector3(0, 0.6, 0), "+$%d" % value)
-	message.emit("Al camión: %s ($%d)." % [what.to_lower(), value], false)
+	message.emit("Al camión: %s ($%d)." % [what.to_lower(), value], MSG_SMALL)
 
 ## Lo que se cobra al terminar la noche. Solo se cobra si vendieron en el galpón y llegaron a
 ## la cuota; si amanece o llega la policía con el camión en el barrio, se pierde todo.
@@ -969,7 +1111,8 @@ func _srv_end_night(reason: String) -> void:
 	if night_over():
 		return
 	_srv_check_truck()
-	var value := int(game["truck"])
+	# Lo que cuenta es lo que le vendieron al Flaco en la computadora.
+	var value := int(game.get("sold", 0))
 	var quota := int(game["quota"])
 	var rows := []
 	var detained := 0
@@ -982,13 +1125,12 @@ func _srv_end_night(reason: String) -> void:
 		rows.append({"name": _name(peer), "noise": roundi(float(st["noise"])), "broken": st["broken"],
 				"loot": st["loot"], "caught": st["caught"], "wakes": st["wakes"], "left": left_behind})
 	var pay := payout(reason, value, quota, detained * Config.ARREST_FINE)
-	# Lo que se llevó el reducidor (o lo que había en el camión), de lo más caro a lo más barato.
-	var sold := []
-	for id: int in _loaded:
-		var e: Entity = entities.get(id)
-		if e:
-			sold.append([String(e.data.get("name", "algo")), e.value(), e.dents()])
+	# Lo que se llevó el reducidor, de lo más caro a lo más barato (y lo que quedó en el camión).
+	var sold: Array = (game.get("sold_items", []) as Array).duplicate()
 	sold.sort_custom(func(a: Array, c: Array) -> bool: return int(a[1]) > int(c[1]))
+	var left_in_truck := []
+	for it: Array in game.get("cargo", []):
+		left_in_truck.append([it[1], it[2], it[3]])
 	game["over"] = true
 	game["bank"] = int(game.get("bank", 0)) + int(pay["total"])
 	truck.locked = true
@@ -1005,7 +1147,10 @@ func _srv_end_night(reason: String) -> void:
 		"players": rows,
 		"titles": _titles(rows),
 		"sold": sold,
+		"left_in_truck": left_in_truck,
 	}
+	if computer_user() != 0:
+		_srv_set_computer(0)
 	for e: Entity in entities.values():
 		e.holders.clear()
 		_srv_carriers_changed(e)
@@ -1093,10 +1238,18 @@ func _srv_tick(delta: float) -> void:
 			_srv_check_truck()
 		_srv_truck_tick(delta)
 		# Reloj de la noche y policía.
-		game["time_left"] = float(game["time_left"]) - delta
+		var before := float(game["time_left"])
+		game["time_left"] = before - delta
+		if before > Config.DAWN_WARNING and float(game["time_left"]) <= Config.DAWN_WARNING:
+			var tip := " Cierren la noche en la computadora." if bool(game.get("truck_in", false)) else ""
+			_broadcast_message("¡Amanece en 1 minuto!" + tip, MSG_URGENT)
 		if float(game["time_left"]) <= 0.0:
-			_broadcast_message("Amaneció y el camión no llegó al galpón: hay que devolver todo...", true)
-			_srv_end_night("dawn")
+			if int(game.get("sold", 0)) > 0:
+				_broadcast_message("Amaneció: el Flaco cierra el trato con lo que ya le vendieron.", MSG_URGENT)
+				_srv_end_night("sold")
+			else:
+				_broadcast_message("Amaneció y no le vendieron nada al Flaco: hay que devolver todo...", MSG_URGENT)
+				_srv_end_night("dawn")
 		elif police_coming():
 			game["police"] = float(game["police"]) - delta
 			if float(game["police"]) <= 0.0:
@@ -1128,19 +1281,14 @@ func _srv_on_truck_jolt(strength: float) -> void:
 			_srv_on_impact(e, strength)
 
 func _srv_truck_tick(delta: float) -> void:
-	# Venta: el camión parado adentro del galpón un momento.
-	if CityBuilder.in_warehouse_zone(truck.global_position) and truck.speed < Config.SALE_STOP_SPEED:
-		_sale_timer += delta
-		if _sale_timer >= Config.SALE_STOP_TIME:
-			_broadcast_message("El Flaco revisa la mercadería y les paga...", true)
-			_srv_end_night("sold")
-			return
-	else:
-		_sale_timer = 0.0
+	# Llegaron al galpón: ahora se vende en la computadora.
+	if not _arrived and CityBuilder.in_warehouse_zone(truck.global_position) and truck.speed < Config.SALE_STOP_SPEED:
+		_arrived = true
+		_broadcast_message("Llegaron al Galpón 7. Uno se sienta en la computadora de la oficina para venderle al Flaco.", MSG_NOTICE)
 	if not game.get("away", false) and truck.global_position.length() > Config.BARRIO_RADIUS:
 		game["away"] = true
 		_game_dirty = true
-		_broadcast_message("¡Salieron del barrio! Ahora, al Galpón 7: sigan la flecha.", true)
+		_broadcast_message("¡Salieron del barrio! Ahora, al Galpón 7: sigan la flecha.", MSG_NOTICE)
 	if truck.driver == 0:
 		return
 	_engine_timer -= delta
@@ -1161,7 +1309,7 @@ func _srv_police_arrives() -> void:
 	game["police_came"] = true
 	_game_dirty = true
 	if truck.global_position.length() < Config.BARRIO_RADIUS:
-		_broadcast_message("¡LLEGÓ LA POLICÍA y el camión seguía en el barrio!", true)
+		_broadcast_message("¡LLEGÓ LA POLICÍA y el camión seguía en el barrio!", MSG_URGENT)
 		_srv_end_night("police")
 		return
 	var names := []
@@ -1170,9 +1318,9 @@ func _srv_police_arrives() -> void:
 			_arrested[peer] = true
 			names.append(_name(peer))
 	if names.is_empty():
-		_broadcast_message("La policía llegó a lo de Don Ramón, pero ustedes ya no estaban.", true)
+		_broadcast_message("La policía llegó a lo de Don Ramón, pero ustedes ya no estaban.", MSG_NOTICE)
 	else:
-		_broadcast_message("La policía llegó a lo de Don Ramón y detuvo a %s. (Multa de $%d cada uno.)" % [", ".join(names), Config.ARREST_FINE], true)
+		_broadcast_message("La policía llegó a lo de Don Ramón y detuvo a %s. (Multa de $%d cada uno.)" % [", ".join(names), Config.ARREST_FINE], MSG_URGENT)
 
 func _srv_sync() -> void:
 	if _ready_peers.size() <= 1:

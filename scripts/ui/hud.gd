@@ -374,7 +374,8 @@ func _refresh_players() -> void:
 		lines.append(p.player_name + ("  (anfitrión)" if peer == 1 else ""))
 	_players.text = "\n".join(lines)
 
-func _on_message(text: String, important: bool) -> void:
+func _on_message(text: String, level: int) -> void:
+	var important := level >= World.MSG_NOTICE
 	# Lo importante va al cartel grande (en fila, uno por vez); lo demás, a la lista de la derecha.
 	if important:
 		_banner_queue.append(text)

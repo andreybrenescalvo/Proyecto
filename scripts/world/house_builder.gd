@@ -97,9 +97,14 @@ const SPAWNS := [Vector3(-6.8, 0.1, 16.2), Vector3(-5.4, 0.1, 16.2), Vector3(-6.
 ## Zona del camión: quien está acá cuando se van, se va con el camión.
 const TRUCK_ZONE := Rect2(-15.5, 15.4, 10.5, 6.0)
 const HOUSE_RECT := Rect2(-8.0, -6.0, 16.0, 12.0)
+## El terreno de Don Ramón (casa, jardín de adelante y patio, hasta la vereda).
+const PROPERTY_RECT := Rect2(-12.0, -10.0, 24.0, 25.6)
 
 static func in_house(p: Vector3) -> bool:
 	return HOUSE_RECT.has_point(Vector2(p.x, p.z))
+
+static func on_property(p: Vector3) -> bool:
+	return PROPERTY_RECT.has_point(Vector2(p.x, p.z))
 
 static func at_truck(p: Vector3) -> bool:
 	return TRUCK_ZONE.has_point(Vector2(p.x, p.z))

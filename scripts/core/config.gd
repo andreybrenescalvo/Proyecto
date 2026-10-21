@@ -66,9 +66,9 @@ const TRUCK_CRASH_MIN := 14.0
 const TRUCK_CRASH_K := 0.12
 
 # --- El galpón y la venta ---
-## La noche termina cuando el camión queda parado SALE_STOP_TIME segundos adentro del Galpón 7:
-## el reducidor paga lo que hay en la caja. Si no llega a la cuota, el encargo se cancela.
-const SALE_STOP_TIME := 1.0
+## Al llegar, el camión tiene que quedar adentro del Galpón 7 (más despacio que SALE_STOP_SPEED)
+## y alguien se sienta en la computadora a venderle al Flaco lo que hay en la caja. La noche se
+## cierra desde ahí; si lo vendido no llega a la cuota, el encargo se cancela.
 const SALE_STOP_SPEED := 0.8      # m/s: "parado"
 ## Golpes: cada golpe fuerte le baja el precio a una cosa un DENT_LOSS (hasta MAX_DENTS golpes).
 ## Lo que no es frágil se golpea desde DENT_SPEED m/s; lo frágil, desde DENT_FRAGILE de lo que lo
@@ -99,6 +99,7 @@ const CAUGHT_STUN := 2.5
 
 # --- La noche ---
 const NIGHT_LENGTH := 420.0       # segundos hasta que amanece
+const DAWN_WARNING := 60.0        # a cuántos segundos del amanecer se avisa (urgente)
 const POLICE_DELAY := 60.0        # desde que el dueño atrapa a alguien y llama a la policía
 const ARREST_FINE := 300          # por cada ladrón que se queda adentro cuando llega la policía
 
