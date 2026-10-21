@@ -3,6 +3,8 @@ extends RefCounted
 ## Materiales y mallas compartidas. Estilo low-poly: colores planos, sin texturas.
 
 static var _materials := {}
+## Texturas que llevan poco relieve.
+const SOFT_RELIEF := ["paint", "wallpaper_damask", "wallpaper_stripes", "stucco", "plastic", "marble"]
 static var _meshes := {}
 
 ## Material de color plano. Se cachea por parámetros para no crear miles de materiales iguales.
@@ -41,7 +43,9 @@ static func tex(name: String, tint := Color.WHITE, meters := 1.0, world := true,
 		if normal:
 			m.normal_enabled = true
 			m.normal_texture = normal
-			m.normal_scale = 1.0
+			# En paredes lisas (pintura, empapelado, revoque) el relieve va suave: con la linterna
+			# de costado, uno fuerte dibuja líneas raras.
+			m.normal_scale = 0.25 if name in SOFT_RELIEF else 1.0
 		m.uv1_triplanar = true
 		m.uv1_world_triplanar = world
 		m.uv1_triplanar_sharpness = 4.0

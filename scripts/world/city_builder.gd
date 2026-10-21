@@ -282,14 +282,6 @@ static func _speed_bump(root: Node3D, p: Vector3) -> void:
 		stripe.material_override = paint
 		stripe.position = Vector3(0, 0.003, z)
 		body.add_child(stripe)
-	var sign := Label3D.new()
-	sign.text = "LOMO DE BURRO"
-	sign.font_size = 48
-	sign.pixel_size = 0.006
-	sign.modulate = Color(0.95, 0.8, 0.2, 0.9)
-	sign.position = Vector3(5.0, 0.03, 0)
-	sign.rotation_degrees = Vector3(-90, 90, 0)   # se lee viniendo desde la casa (hacia el oeste)
-	body.add_child(sign)
 
 ## Carteles con el nombre de las calles en cada esquina.
 static func _street_signs(b: MeshBatch, root: Node3D) -> void:
@@ -1180,8 +1172,6 @@ static func _warehouse(b: MeshBatch, root: Node3D) -> void:
 	b.box(Vector3(zr.size.x, 0.01, 0.2), _p(zr.get_center().x, zr.end.y, 0.04), yellow)
 	b.box(Vector3(0.2, 0.01, zr.size.y), _p(zr.position.x, zr.get_center().y, 0.04), yellow)
 	b.box(Vector3(0.2, 0.01, zr.size.y), _p(zr.end.x, zr.get_center().y, 0.04), yellow)
-	var floor_text := _label(root, "DEJEN EL CAMIÓN ACÁ", Transform3D(Basis.from_euler(Vector3(-PI * 0.5, PI * 0.5, 0)), Vector3(zr.get_center().x + 3.0, 0.05, zr.get_center().y)), 96, Color(0.95, 0.78, 0.15, 0.9), 60.0)
-	floor_text.outline_size = 0
 	_warehouse_interior(b, root)
 	# Cartel de la empresa en la fachada (de día es un negocio de verdad).
 	b.box(Vector3(0.1, 1.5, 4.4), _p(c.x + sx + 0.2, c.z + door.x * 0.5 + 2.6, 3.1), Mats.color(Color(0.95, 0.5, 0.15), 0.7, 0.2))

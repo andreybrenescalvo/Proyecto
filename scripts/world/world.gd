@@ -682,6 +682,17 @@ func rpc_cargo(ids: PackedInt32Array, positions: PackedVector3Array, rots: Packe
 
 # ================================================================ la computadora del Galpón 7
 
+## La misión se canceló (se fueron del barrio sin la cuota): no hay más instrucciones ni venta.
+func mission_canceled() -> bool:
+	return bool(game.get("canceled", false))
+
+## El anfitrión termina la noche cuando la misión ya está cancelada (desde la pausa).
+func srv_finish_canceled() -> bool:
+	if not is_server or night_over() or not mission_canceled():
+		return false
+	_srv_end_night("cancel")
+	return true
+
 ## Quién está sentado en la computadora (0 = nadie).
 func computer_user() -> int:
 	return int(game.get("computer", 0))
@@ -706,7 +717,7 @@ func srv_computer(peer: int, action: String) -> bool:
 			return false
 		_srv_set_computer(0)
 		return true
-	if night_over() or computer_user() != 0 or is_seated(peer):
+	if night_over() or computer_user() != 0 or is_seated(peer) or mission_canceled():
 		return false
 	if player_position(peer).distance_to(CityBuilder.COMPUTER_SEAT) > Config.INTERACT_RANGE + 1.0:
 		return false
@@ -1021,6 +1032,7 @@ func _srv_new_night(night: int, bank: int) -> void:
 		"police": -1.0,
 		"police_came": false,
 		"away": false,
+		"canceled": false,
 		"computer": 0,
 		"cargo": [],
 		"truck_in": false,
@@ -1148,6 +1160,7 @@ func _srv_end_night(reason: String) -> void:
 		"titles": _titles(rows),
 		"sold": sold,
 		"left_in_truck": left_in_truck,
+		"left_without_quota": mission_canceled(),
 	}
 	if computer_user() != 0:
 		_srv_set_computer(0)
@@ -1240,11 +1253,13 @@ func _srv_tick(delta: float) -> void:
 		# Reloj de la noche y policía.
 		var before := float(game["time_left"])
 		game["time_left"] = before - delta
-		if before > Config.DAWN_WARNING and float(game["time_left"]) <= Config.DAWN_WARNING:
+		if before > Config.DAWN_WARNING and float(game["time_left"]) <= Config.DAWN_WARNING and not mission_canceled():
 			var tip := " Cierren la noche en la computadora." if bool(game.get("truck_in", false)) else ""
 			_broadcast_message("¡Amanece en 1 minuto!" + tip, MSG_URGENT)
 		if float(game["time_left"]) <= 0.0:
-			if int(game.get("sold", 0)) > 0:
+			if mission_canceled():
+				_srv_end_night("cancel")
+			elif int(game.get("sold", 0)) > 0:
 				_broadcast_message("Amaneció: el Flaco cierra el trato con lo que ya le vendieron.", MSG_URGENT)
 				_srv_end_night("sold")
 			else:
@@ -1282,13 +1297,23 @@ func _srv_on_truck_jolt(strength: float) -> void:
 
 func _srv_truck_tick(delta: float) -> void:
 	# Llegaron al galpón: ahora se vende en la computadora.
-	if not _arrived and CityBuilder.in_warehouse_zone(truck.global_position) and truck.speed < Config.SALE_STOP_SPEED:
+	if not _arrived and not mission_canceled() and CityBuilder.in_warehouse_zone(truck.global_position) and truck.speed < Config.SALE_STOP_SPEED:
 		_arrived = true
 		_broadcast_message("Llegaron al Galpón 7. Uno se sienta en la computadora de la oficina para venderle al Flaco.", MSG_NOTICE)
-	if not game.get("away", false) and truck.global_position.length() > Config.BARRIO_RADIUS:
+	var from_house := truck.global_position.length()
+	if not game.get("away", false) and from_house > Config.BARRIO_RADIUS and not mission_canceled():
 		game["away"] = true
 		_game_dirty = true
 		_broadcast_message("¡Salieron del barrio! Ahora, al Galpón 7: sigan la flecha.", MSG_NOTICE)
+	# Si se van sin la cuota, la misión se cancela sola y pueden andar libres por el mapa.
+	# (Una vez en el galpón ya no: ahí el camión se vacía al venderle al Flaco.)
+	if not mission_canceled() and not _arrived and int(game.get("sold", 0)) == 0 \
+			and from_house > Config.BARRIO_RADIUS + Config.CANCEL_EXTRA_DISTANCE and int(game["truck"]) < int(game["quota"]):
+		game["canceled"] = true
+		_game_dirty = true
+		if computer_user() != 0:
+			_srv_set_computer(0)
+		_broadcast_message("Se fueron sin la cuota: misión cancelada. Pueden andar libres por la ciudad; el anfitrión termina la noche desde la pausa.", MSG_URGENT)
 	if truck.driver == 0:
 		return
 	_engine_timer -= delta

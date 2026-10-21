@@ -91,8 +91,9 @@ func _ready() -> void:
 	_light.spot_angle = 28.0
 	_light.spot_attenuation = 0.9
 	_light.shadow_enabled = is_local
-	_light.shadow_bias = 0.4
-	_light.shadow_normal_bias = 3.0
+	_light.shadow_bias = 0.6
+	_light.shadow_normal_bias = 4.0
+	_light.shadow_blur = 1.5
 	_light.position = Vector3(0.18, -0.12, -0.25)
 	head.add_child(_light)
 	if is_local:
@@ -179,7 +180,11 @@ func can_control() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_local or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
-	if event is InputEventMouseMotion:
+	if event is InputEventMouseMotion and seat >= 0:
+		# Arriba del camión, el mouse gira la cámara alrededor del camión.
+		var drag := (event as InputEventMouseMotion).relative * MOUSE_SENS
+		world.truck.orbit(drag.x, drag.y)
+	elif event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		yaw -= motion.relative.x * MOUSE_SENS
 		pitch = clampf(pitch - motion.relative.y * MOUSE_SENS, -1.5, 1.5)
@@ -318,6 +323,8 @@ func set_seat(new_seat: int) -> void:
 		collision_mask = 0 if seated else (Config.L_WORLD | Config.L_BIG | Config.L_PLAYER | Config.L_DOOR | Config.L_OWNER)
 		if seated:
 			holding_id = 0
+			world.truck.orbit_yaw = 0.0
+			world.truck.orbit_pitch = 0.0
 			world.truck.camera.make_current()
 		else:
 			camera.make_current()

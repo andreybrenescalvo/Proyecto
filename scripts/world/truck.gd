@@ -23,6 +23,7 @@ const MAX_STEER := 0.55        # radianes, parado
 const MIN_STEER := 0.12        # a toda velocidad gira poco (si no, se vuelca)
 const STEER_SPEED := 1.6       # qué tan rápido gira el volante
 const INPUT_TIMEOUT := 0.5     # si el conductor deja de mandar, suelta todo
+const ORBIT_RETURN_DELAY := 2.0  # segundos sin mover el mouse para que la cámara vuelva atrás
 
 ## Sacudón fuerte (un lomo de burro rápido o un choque): `strength` es como la velocidad de un
 ## golpe (m/s) y se compara con lo que aguanta cada cosa frágil de la caja.
@@ -40,6 +41,11 @@ var driver := 0               # peer al volante (0 = nadie)
 var seats := {}               # peer -> asiento
 var area: Area3D              # la caja de carga: lo que está adentro cuenta como botín
 var camera: Camera3D          # cámara de persecución (para los que van arriba)
+## La cámara gira alrededor del camión con el mouse (360°); si no se mueve el mouse un rato,
+## vuelve sola atrás del camión.
+var orbit_yaw := 0.0
+var orbit_pitch := 0.0
+var _orbit_idle := 0.0
 var speed := 0.0              # m/s, en todas las computadoras
 var forward_speed := 0.0      # con signo: negativo = marcha atrás
 var locked := false           # terminó la noche: queda frenado aunque haya alguien al volante
@@ -416,14 +422,27 @@ func _process(delta: float) -> void:
 	_engine.pitch_scale = 0.7 + clampf(speed / Config.TRUCK_MAX_SPEED, 0.0, 1.0) * 0.8
 	_engine.volume_db = -8.0 + clampf(speed / Config.TRUCK_MAX_SPEED, 0.0, 1.0) * 6.0
 	# Cámara de persecución, suave (si no, se sacude con la suspensión).
-	_cam_smooth = _cam_smooth.interpolate_with(_chase_transform(), clampf(delta * 4.0, 0.0, 1.0))
+	_orbit_idle += delta
+	if _orbit_idle > ORBIT_RETURN_DELAY and speed > 1.0:
+		orbit_yaw = lerp_angle(orbit_yaw, 0.0, clampf(delta * 1.5, 0.0, 1.0))
+		orbit_pitch = lerpf(orbit_pitch, 0.0, clampf(delta * 1.5, 0.0, 1.0))
+	_cam_smooth = _cam_smooth.interpolate_with(_chase_transform(), clampf(delta * 6.0, 0.0, 1.0))
 	camera.global_transform = _cam_smooth
+
+## Mover la cámara con el mouse (lo llama el jugador que va arriba).
+func orbit(dx: float, dy: float) -> void:
+	orbit_yaw = wrapf(orbit_yaw - dx, -PI, PI)
+	orbit_pitch = clampf(orbit_pitch - dy, -0.35, 0.9)
+	_orbit_idle = 0.0
 
 func _chase_transform() -> Transform3D:
 	var flat := global_transform.basis.z
 	flat.y = 0.0
 	flat = flat.normalized() if flat.length() > 0.1 else Vector3.FORWARD
-	var eye := global_position - flat * 9.0 + Vector3(0, 4.2, 0)
+	flat = flat.rotated(Vector3.UP, orbit_yaw)
+	var height := 4.2 + orbit_pitch * 6.0
+	var back := 9.0 - orbit_pitch * 2.5
+	var eye := global_position - flat * back + Vector3(0, height, 0)
 	var target := global_position + flat * 3.0 + Vector3(0, 1.2, 0)
 	return Transform3D.IDENTITY.translated(eye).looking_at(target, Vector3.UP)
 

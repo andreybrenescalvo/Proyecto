@@ -49,6 +49,7 @@ var _pause_police_label: Label
 var _resume: UiStyle.LabelButton
 var _invite: UiStyle.LabelButton
 var _pause_leave: UiStyle.LabelButton
+var _pause_finish: UiStyle.LabelButton
 var _pause_mic: Menu.MicPanel
 var _pause_tween: Tween
 var _paused := false
@@ -304,6 +305,10 @@ func _build_pause(root: Control) -> void:
 	for line: String in HELP_LINES:
 		box.add_child(UiStyle.key_text(line, UiStyle.SIZE_SMALL, UiStyle.INK))
 	box.add_child(UiStyle.spacer(14))
+	# Con la misión cancelada, el anfitrión termina la noche cuando quiere.
+	_pause_finish = UiStyle.LabelButton.new("Terminar la noche (misión cancelada)")
+	_pause_finish.pressed.connect(_finish_canceled_night)
+	box.add_child(_pause_finish)
 	_pause_leave = UiStyle.LabelButton.new("Salir al menú")
 	_pause_leave.pressed.connect(_ask_leave_from_pause)
 	box.add_child(_pause_leave)
@@ -372,7 +377,8 @@ func _update_speed(p: Player) -> void:
 
 func _update_gps(p: Player) -> void:
 	var to_desk := bool(world.game.get("truck_in", false)) and world.computer_user() == 0 and p.seat < 0
-	_gps.visible = (to_desk or p.seat >= 0 or bool(world.game.get("away", false))) and not world.night_over() and not p.at_computer
+	_gps.visible = (to_desk or p.seat >= 0 or bool(world.game.get("away", false))) and not world.night_over() and not p.at_computer \
+			and not world.mission_canceled()
 	if not _gps.visible:
 		return
 	var cam := get_viewport().get_camera_3d()
@@ -612,6 +618,8 @@ func _results_summary(cols: HBoxContainer, res: Dictionary, reason: String) -> C
 	var wakes := int(res.get("wakes", 0))
 	left.add_child(UiStyle.label("Don Ramón se despertó %d %s." % [wakes, "vez" if wakes == 1 else "veces"], UiStyle.SIZE_BODY, UiStyle.INK))
 	var explain := String(EXPLAIN.get(reason, ""))
+	if bool(res.get("left_without_quota", false)):
+		explain = "Se fueron del barrio sin la cuota: la misión se canceló y no cobran nada."
 	if explain != "":
 		var l := UiStyle.wrapped(explain, UiStyle.SIZE_BODY, UiStyle.INK, 510)
 		l.max_lines_visible = 2
@@ -822,18 +830,23 @@ func _hide_results() -> void:
 
 # ---------------------------------------------------------------- pausa y mouse
 
+func _finish_canceled_night() -> void:
+	_set_paused(false)
+	world.srv_finish_canceled()
+
 func _set_paused(paused: bool) -> void:
 	if _pause_tween:
 		_pause_tween.kill()
 	_paused = paused
 	_invite.visible = Net.mode == Net.Mode.STEAM
+	_pause_finish.visible = world.is_server and world.mission_canceled() and not world.night_over()
 	if paused:
 		_pause.visible = true
 		_pause.modulate.a = 0.0
 		_pause_tween = create_tween()
 		_pause_tween.tween_property(_pause, "modulate:a", 1.0, 0.12)
 		_update_clock()
-		UiStyle.chain_focus([_resume, _invite, _pause_mic.toggle, _pause_mic.slider, _pause_leave], true)
+		UiStyle.chain_focus([_resume, _invite, _pause_mic.toggle, _pause_mic.slider, _pause_finish, _pause_leave], true)
 		_resume.grab_focus()
 	else:
 		for c in _pause.get_children():

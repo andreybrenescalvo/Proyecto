@@ -34,6 +34,19 @@ func _ready() -> void:
 		await _drive_out()
 		get_tree().quit(0)
 		return
+	if OS.get_cmdline_user_args().has("--tour-walls"):
+		world.local_player.flashlight_on = true
+		world.local_player._update_light()
+		world.srv_set_door(0, true, 0)
+		await _wait(0.5)
+		await _shot_from(Vector3(-4.0, 0.1, 2.0), Vector3(-8.0, 1.4, 2.0), "pared_sala_de_cerca")
+		await _shot_from(Vector3(-2.0, 0.1, 3.0), Vector3(-8.0, 1.2, 0.5), "pared_sala_de_costado")
+		await _shot_from(Vector3(-4.0, 0.1, -2.5), Vector3(-4.0, 1.4, -6.0), "pared_cocina")
+		await _shot_from(Vector3(1.0, 0.1, -1.0), Vector3(1.0, 1.2, -6.0), "pared_pasillo")
+		await _shot_from(Vector3(5.0, 0.1, 2.0), Vector3(8.0, 1.4, 1.0), "pared_dormitorio")
+		await _shot_from(Vector3(-4.0, 0.1, 9.0), Vector3(-4.0, 1.5, 6.0), "fachada_de_cerca")
+		get_tree().quit(0)
+		return
 	if OS.get_cmdline_user_args().has("--tour-warehouse"):
 		await _warehouse()
 		print("TOUR OK: %d fotos en %s" % [_n, out_dir])

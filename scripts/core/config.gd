@@ -81,6 +81,8 @@ const DENT_COOLDOWN := 0.6
 ## El barrio de Don Ramón (metros desde la casa). Si la policía llega con el camión más cerca,
 ## los agarran con todo; si ya se fue, solo detiene a los que se quedaron cerca de la casa.
 const BARRIO_RADIUS := 60.0
+## Si el camión se aleja esto más allá del barrio sin llevar la cuota, la misión se cancela sola.
+const CANCEL_EXTRA_DISTANCE := 50.0
 
 # --- El dueño ---
 const OWNER_WALK := 2.2           # en pantuflas, investigando
