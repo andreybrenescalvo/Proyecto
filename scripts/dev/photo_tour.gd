@@ -6,11 +6,13 @@ extends Node
 ## Pone la cámara en varios lugares de la casa y de la ciudad, despierta a Don Ramón, maneja el
 ## camión hasta el Galpón 7 (eso termina la noche) y guarda capturas. Con `--tour-quick` saca solo
 ## dos fotos del frente (para probar cambios rápido); con `--tour-city`, solo la ciudad; con
-## `--tour-drive`, solo el viaje en camión.
+## `--tour-drive`, solo el viaje en camión; con `--tour-ui`, las pantallas de la interfaz (menú,
+## pausa, cuadro de avisos, computadora del galpón y resultados) para revisar la spec de UX.
 
 var world: World
 var out_dir := ""
 var _n := 0
+var _keep_notices := false   # --tour-ui: no borrar el cuadro de avisos antes de cada foto
 
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(out_dir)
@@ -21,6 +23,11 @@ func _ready() -> void:
 		world._show_style(77)
 		await _shot_from(Vector3(-3.0, 0.1, 17.0), Vector3(-4.0, 2.0, 6.0), "rapido_frente")
 		await _shot_from(Vector3(-15.0, 0.1, 20.5), Vector3(-4.0, 1.8, 6.0), "rapido_casa_y_camion")
+		get_tree().quit(0)
+		return
+	if OS.get_cmdline_user_args().has("--tour-ui"):
+		await _ui()
+		print("TOUR OK: %d fotos en %s" % [_n, out_dir])
 		get_tree().quit(0)
 		return
 	if OS.get_cmdline_user_args().has("--tour-drive"):
@@ -120,6 +127,166 @@ func _warehouse() -> void:
 	await _shot_from(CityBuilder.COMPUTER_SEAT + Vector3(-1.4, 0.0, 0.3), CityBuilder.COMPUTER_SEAT + Vector3(0, 0.8, -0.3), "escribiendo_de_costado")
 	typist.queue_free()
 
+## Las pantallas de la interfaz (design/ux/menus-y-venta.md): menú (PC, con error y web), cuadro
+## de avisos (normal, urgente, solo ayuda), la casa con la mira, pausa, computadora del galpón
+## (escritorio, Mercado lleno, con algo vendido, camión afuera, las dos confirmaciones) y los
+## resultados (vendido, cancelado, y los cuatro motivos con la tabla llena).
+func _ui() -> void:
+	_keep_notices = true
+	var hud := world.hud
+	var main := get_parent()
+	var menu: Menu = main.get("menu")
+	menu.open("")
+	await _wait(0.8)
+	await _shot("ui_menu")
+	menu.open("Se perdió la conexión con el anfitrión.")
+	await _wait(0.6)
+	await _shot("ui_menu_con_error")
+	menu.close()
+	var web := Menu.new()
+	web.web_preview = true
+	main.add_child(web)
+	await _wait(0.8)
+	await _shot("ui_menu_web")
+	web.queue_free()
+	await _wait(0.5)
+	# En la casa, mirando algo que se puede agarrar (mira en anillo, barra de Don Ramón y ayuda).
+	hud.hide_banner()
+	var target: Entity = null
+	for e: Entity in world.entities.values():
+		if HouseBuilder.in_house(e.global_position) and e.global_position.y < 1.2 and not e.is_heavy():
+			target = e
+			break
+	if target:
+		var at := target.global_position
+		for dir: Vector3 in [Vector3(1.3, 0, 0), Vector3(-1.3, 0, 0), Vector3(0, 0, 1.3), Vector3(0, 0, -1.3)]:
+			await _shot_from_quiet(Vector3(at.x + dir.x, 0.1, at.z + dir.z), at)
+			if String(world.local_player.look.get("kind", "")) == "entity":
+				break
+	world.message.emit("Noche 1: la casa de Don Ramón. Carguen al menos $1800 y lleven el camión al Galpón 7 antes de que amanezca.", World.MSG_NOTICE)
+	world.message.emit("Al camión: lámpara ($60).", World.MSG_SMALL)
+	await _wait(0.6)
+	await _shot("ui_casa_aviso_y_ayuda")
+	# Pausa y su confirmación.
+	hud.hide_banner()
+	hud.set_paused(true)
+	await _wait(0.5)
+	await _shot("ui_pausa")
+	hud._ask_leave_from_pause()
+	await _wait(0.5)
+	await _shot("ui_pausa_confirmar_salida")
+	hud.set_paused(false)
+	await _wait(0.4)
+	# Manejando: aviso normal con otro en fila, urgente y solo ayuda.
+	var truck := world.truck
+	world.local_player.teleport(truck.door_position("truck_drive"))
+	await _wait(0.3)
+	world.srv_seat(1, "truck_drive")
+	await _wait(0.8)
+	hud.hide_banner()
+	world.message.emit("¡Salieron del barrio! Ahora, al Galpón 7: sigan la flecha.", World.MSG_NOTICE)
+	world.message.emit("El Flaco los espera en el Galpón 7, en la zona industrial.", World.MSG_NOTICE)
+	await _wait(0.6)
+	await _shot("ui_aviso_normal")
+	world.message.emit("Don Ramón llamó a la policía: llega en 90 segundos. ¡Carguen lo que puedan y váyanse!", World.MSG_URGENT)
+	await _wait(0.7)
+	await _shot("ui_aviso_urgente")
+	hud.hide_banner()
+	await _wait(0.3)
+	await _shot("ui_solo_ayuda")
+	world.srv_seat(1, "exit")
+	await _wait(0.5)
+	# El camión en el galpón con cosas en la caja.
+	truck.park(Vector3(-288.5, 0, 0), -90.0)
+	await _wait(0.6)
+	var spots := [Vector3(0, 0.95, 1.2), Vector3(-0.6, 0.75, -0.9), Vector3(0.6, 0.65, -0.9), Vector3(-0.6, 0.7, 0.1),
+			Vector3(0.6, 0.7, 0.1), Vector3(0, 0.7, -0.4), Vector3(0, 0.9, 0.6)]
+	for e: Entity in world.entities.values():
+		if spots.is_empty():
+			break
+		if e.is_heavy() or e.value() <= 0:
+			continue
+		e.global_transform = Transform3D(truck.global_transform.basis, truck.to_global(spots.pop_front()))
+		e.linear_velocity = Vector3.ZERO
+		e.ignore_next_impacts(30)
+	await _wait(1.5)
+	world.local_player.teleport(CityBuilder.COMPUTER_SEAT + Vector3(0, 0.1, 0.9))
+	await _wait(0.4)
+	print("sentarse en la compu: ", world.srv_computer(1, "sit"))
+	await _wait(1.0)
+	var pc := hud.computer()
+	await _shot("ui_compu_escritorio")
+	pc.open_app("market")
+	await _wait(0.6)
+	await _shot("ui_mercado_lleno")
+	if not pc._mk_order.is_empty():
+		pc._sell(pc._mk_order[0])
+		await _wait(0.15)
+		await _shot("ui_mercado_vendiendo")
+		await _wait(1.0)
+	await _shot("ui_mercado_con_algo_vendido")
+	pc.ask_close_night()
+	await _wait(0.6)
+	await _shot("ui_confirmar_sin_cuota")
+	pc._close_modal()
+	truck.park(HouseBuilder.TRUCK_POS, HouseBuilder.TRUCK_ROT)
+	await _wait(1.2)
+	world.message.emit("¡Amanece en 1 minuto! Cierren la noche en la computadora.", World.MSG_URGENT)
+	await _wait(0.6)
+	await _shot("ui_mercado_camion_afuera")
+	# Con la cuota cumplida (para la foto se baja la cuota a lo vendido).
+	world.game["quota"] = maxi(int(world.game.get("sold", 0)), 1)
+	world.game_changed.emit()
+	pc.ask_close_night()
+	await _wait(0.6)
+	await _shot("ui_confirmar_con_cuota")
+	world.request_close_night()
+	await _wait(2.0)
+	await _shot("ui_resultados_vendido")
+	# Otra noche: se sienta y cierra sin vender nada (cancelado).
+	world.srv_next_night()
+	await _wait(1.5)
+	world.local_player.teleport(CityBuilder.COMPUTER_SEAT + Vector3(0, 0.1, 0.9))
+	await _wait(0.4)
+	world.srv_computer(1, "sit")
+	await _wait(0.6)
+	world.request_close_night()
+	await _wait(2.0)
+	await _shot("ui_resultados_cancelado")
+	# Tabla llena: 4 jugadores, 5 premios, 20 objetos, con cada motivo.
+	for reason in ["sold", "police", "dawn"]:
+		hud._show_results(_fake_results(reason))
+		await _wait(1.8)
+		await _shot("ui_resultados_lleno_" + reason)
+
+func _fake_results(reason: String) -> Dictionary:
+	var names := ["Televisor", "Microondas", "Lámpara", "Jarrón", "Notebook", "Reloj", "Joyero", "Consola", "Radio", "Silla",
+			"Cuadro", "Tostadora", "Licuadora", "Bicicleta", "Ventilador", "Espejo", "Plancha", "Cafetera", "Velador", "Alfombra"]
+	var items := []
+	for i in names.size():
+		items.append([names[i], 600 - i * 25, i % 4])
+	var sold := items if reason == "sold" else []
+	return {"reason": reason, "night": 3, "value": 2950 if reason == "sold" else 0, "quota": 2600,
+			"stars": 1 if reason == "sold" else 0, "fines": 300 if reason == "sold" else 0, "total": 2650 if reason == "sold" else 0,
+			"bank": 5400, "wakes": 2,
+			"players": [{"name": "Ana", "noise": 12, "broken": 0, "loot": 800, "caught": 0, "wakes": 0, "left": false},
+				{"name": "Beto", "noise": 48, "broken": 3, "loot": 650, "caught": 1, "wakes": 1, "left": true},
+				{"name": "Caro", "noise": 20, "broken": 1, "loot": 900, "caught": 0, "wakes": 1, "left": false},
+				{"name": "Dani", "noise": 5, "broken": 0, "loot": 600, "caught": 0, "wakes": 0, "left": false}],
+			"titles": [["El más ruidoso", "Beto"], ["Despertador humano", "Beto"], ["Manos de mantequilla", "Beto"],
+				["Imán de abuelos", "Beto"], ["Empleado del mes", "Caro"]],
+			"sold": sold, "left_in_truck": [] if reason == "sold" else items}
+
+## Como `_shot_from`, pero sin sacar la foto (para acomodar al jugador).
+func _shot_from_quiet(from: Vector3, target: Vector3) -> void:
+	var me := world.local_player
+	me.teleport(from)
+	var eye := from + Vector3(0, Player.EYE_STAND, 0)
+	var d := target - eye
+	me.yaw = atan2(-d.x, -d.z)
+	me.pitch = atan2(d.y, Vector2(d.x, d.z).length())
+	await _wait(0.5)
+
 ## Foto desde una cámara en el aire.
 func _aerial(from: Vector3, target: Vector3, label: String) -> void:
 	var cam := Camera3D.new()
@@ -193,7 +360,8 @@ func _shot_from(from: Vector3, target: Vector3, label: String) -> void:
 	await _shot(label)
 
 func _shot(label: String) -> void:
-	world.hud.hide_banner()
+	if not _keep_notices:
+		world.hud.hide_banner()
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	_n += 1

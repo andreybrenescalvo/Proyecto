@@ -2,7 +2,7 @@ class_name NoticeBox
 extends PanelContainer
 ## Cuadro de avisos (design/ux/menus-y-venta.md § 5 y § 9.4).
 ##
-## Arriba, los avisos de la partida en fila, uno por vez (con "+N" si hay más esperando y una
+## Arriba, los avisos de la partida (hasta 4 líneas) en fila, uno por vez (con "+N" si hay más esperando y una
 ## línea que se acorta con el tiempo que le queda). Abajo y fija, la ayuda contextual con las
 ## teclas dibujadas como tapitas. Si no hay ni aviso ni ayuda, el cuadro no se ve.
 ##
@@ -66,7 +66,7 @@ func _ready() -> void:
 	_more_label = UiStyle.label("", UiStyle.SIZE_SMALL, UiStyle.SIGN_YELLOW)
 	head.add_child(_more_label)
 	_notice_label = UiStyle.wrapped("", UiStyle.SIZE_BODY, UiStyle.TEXT_LIGHT)
-	_notice_label.max_lines_visible = 3
+	_notice_label.max_lines_visible = 4
 	_notice_box.add_child(_notice_label)
 	_time_line = UiStyle.bar(UiStyle.SIGN_YELLOW, 0, 3, Color(1, 1, 1, 0.08))
 	_notice_box.add_child(_time_line)

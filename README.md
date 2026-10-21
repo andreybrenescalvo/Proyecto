@@ -20,8 +20,12 @@ la mudanza de día, más casas, arte y sonido de verdad.
 | ![Dormitorio con empapelado, cortinas y piso de madera; Don Ramón dormido](docs/capturas/dormitorio.png) | ![Don Ramón en pijama y gorro de dormir caminando por el pasillo](docs/capturas/don_ramon.png) |
 | **La ciudad desde arriba** | **La avenida, con los comercios** |
 | ![Vista aérea de noche: manzanas de casas, la avenida con comercios, la plaza con su obelisco y la estación de servicio](docs/capturas/ciudad.png) | ![La avenida de noche con negocios, toldos, carteles, autos estacionados y faroles](docs/capturas/avenida.png) |
-| **Rumbo al Galpón 7 (la flecha marca el camino)** | **El Flaco les compra todo** |
-| ![El camión entrando al Galpón 7 en la zona industrial, con la flecha y los metros arriba de la pantalla](docs/capturas/galpon_7.png) | ![Pantalla de venta: la lista de lo que compró el reducidor y lo que pagó por cada cosa](docs/capturas/venta.png) |
+| **Rumbo al Galpón 7 (la flecha marca el camino)** | **Adentro: el taller "de reparaciones" y la oficinita** |
+| ![El camión entrando al Galpón 7 en la zona industrial, con la flecha y los metros arriba de la pantalla](docs/capturas/galpon_7.png) | ![Una mudancera sentada en el escritorio de la oficina del galpón, tecleando en una computadora vieja](docs/capturas/galpon_por_dentro.png) |
+| **El Mercado del Flaco (en la computadora)** | **El remito de la noche** |
+| ![La computadora vieja con el Mercado del Flaco: lo que hay en el camión con su precio, la cuota y el botón Cerrar la noche](docs/capturas/computadora.png) | ![Resultados como un remito de mudanza: sello de vendido, plata, mercadería y personal](docs/capturas/venta.png) |
+| **El menú** | |
+| ![Menú de bienvenida con el título como cinta de embalar, botones naranjas y la ciudad de noche de fondo](docs/capturas/menu.png) | |
 | **Manejando por el barrio** | **El lomo de burro (despacio, que se rompe todo)** |
 | ![El camión de mudanzas doblando en una esquina, con el velocímetro](docs/capturas/manejando.png) | ![Lomo de burro pintado de amarillo en la calle Los Aromos](docs/capturas/lomo_de_burro.png) |
 | **Los mudanceros (uno por jugador)** | |
@@ -95,6 +99,11 @@ la mudanza de día, más casas, arte y sonido de verdad.
   *El más ruidoso*, *Despertador humano* (quién lo despertó), *Manos de mantequilla*,
   *Imán de abuelos* y *Empleado del mes*. Después se puede jugar otra noche: la cuota sube
   y Don Ramón duerme más liviano.
+- **Interfaz estilo "cartón de mudanza":** el título es cinta de embalar, los paneles son cartón
+  y los botones, etiquetas naranjas; todo se usa también solo con teclado. Los avisos van en un
+  cuadro chico abajo a la izquierda (los urgentes, como la policía o el amanecer, con borde rojo)
+  y el medidor de la voz, abajo a la derecha. La barra del sueño de Don Ramón solo aparece
+  mientras están en su terreno. Los resultados de la noche salen como un remito de mudanza.
 - **Multijugador sin servidores:** un jugador es el anfitrión y los demás se conectan a él
   (por IP/red local, o por Steam con el plugin GodotSteam).
 - **Personas animadas:** los mudanceros (uno distinto por jugador) y Don Ramón tienen cuerpo,
@@ -201,7 +210,10 @@ scripts/
   entities/entity.gd       Objetos físicos (lo que se roba y lo que solo hace ruido)
   entities/character_model.gd  Una persona animada (modelo + animaciones)
   player/player.gd         El mudancero en primera persona
-  ui/hud.gd, ui/menu.gd    Interfaz (y resultados de la noche)
+  ui/hud.gd, ui/menu.gd    Interfaz (pausa, avisos, resultados de la noche y menú de bienvenida)
+  ui/ui_style.gd           Estilo "cartón de mudanza": colores, tema y piezas compartidas
+  ui/computer_screen.gd    La computadora del Galpón 7 (Mercado del Flaco)
+  ui/notice_box.gd         El cuadro de avisos de abajo a la izquierda
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
   dev/autopilot.gd         Piloto automático (maneja hasta el Galpón 7 en las pruebas y las fotos)
@@ -279,7 +291,10 @@ godot --headless --path . -- --join=127.0.0.1 --autotest
 
 Cada una termina con `AUTOTEST OK` (o con la lista de lo que falló). También hay un recorrido que guarda
 capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida` (con `--tour-city`
-saca solo las de la ciudad, y con `--tour-drive` solo el viaje en camión hasta el galpón).
+saca solo las de la ciudad, con `--tour-drive` solo el viaje en camión hasta el galpón, con
+`--tour-warehouse` el interior del galpón y con `--tour-ui` todas las pantallas de la interfaz).
+El diseño de la interfaz está en `design/ux/menus-y-venta.md` y sus piezas reutilizables en
+`design/ux/interaction-patterns.md`.
 
 ## Trabajar con el "estudio" de IA
 

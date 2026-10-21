@@ -260,6 +260,9 @@ static func draw_glyph(ci: CanvasItem, kind: String, r: Rect2, c: Color, inner :
 				pts.append(mid + Vector2(cos(a), sin(a)) * rad + Vector2(0, s * 0.04))
 			if kind == "star":
 				ci.draw_colored_polygon(pts, c)
+				if inner != c:
+					pts.append(pts[0])
+					ci.draw_polyline(pts, inner, maxf(1.0, s * 0.05), true)
 			else:
 				ci.draw_colored_polygon(pts, Color(c, 0.18))
 				pts.append(pts[0])

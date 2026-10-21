@@ -93,7 +93,7 @@ var _mk_close: RetroButton
 var _closing := false
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
 	theme = UiStyle.theme()
@@ -117,13 +117,14 @@ func _ready() -> void:
 	_window_layer.offset_bottom = -40
 	_window_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_screen.add_child(_window_layer)
+	# Notificaciones arriba a la derecha: abajo taparían "Cerrar la noche" del Mercado.
 	var corner := VBoxContainer.new()
-	corner.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	corner.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	corner.offset_left = -416
 	corner.offset_right = -16
-	corner.offset_top = -40 - 12 - 180
-	corner.offset_bottom = -40 - 12
-	corner.alignment = BoxContainer.ALIGNMENT_END
+	corner.offset_top = 12
+	corner.offset_bottom = 200
+	corner.alignment = BoxContainer.ALIGNMENT_BEGIN
 	corner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_screen.add_child(corner)
 	_notices = NoticeBox.new(false)
@@ -666,7 +667,9 @@ func _mk_refresh() -> void:
 			total += int(data[2])
 			sellable += 1
 	_mk_count.text = "EN LA CAJA DEL CAMIÓN (%d)" % _mk_order.size()
-	_mk_sell_all.text = "Vender todo ($%d)" % total
+	var sell_all_text := "Vender todo ($%d)" % total
+	if _mk_sell_all.text != sell_all_text:
+		_mk_sell_all.set_look(sell_all_text, "play")
 	_mk_sell_all.disabled = sellable == 0
 	var sold := int(world.game.get("sold", 0))
 	if not truck_in:
@@ -964,7 +967,7 @@ class RetroButton extends Button:
 	func set_look(t: String, g: String) -> void:
 		text = t
 		glyph = g
-		var pad := 32 if g != "" else 10
+		var pad := 32 if g != "" and t != "" else 10
 		for state in [&"normal", &"hover", &"disabled", &"pressed", &"hover_pressed"]:
 			var sb := StyleBoxFlat.new()
 			var pressed: bool = state in [&"pressed", &"hover_pressed"]
@@ -982,7 +985,8 @@ class RetroButton extends Button:
 		if glyph != "" and not (disabled and glyph == "play"):
 			var s := 14.0
 			var c := Color(0.36, 0.36, 0.36) if disabled and glyph != "check" else (UiStyle.INK_GREEN if glyph == "check" else ComputerScreen.SYS_TEXT)
-			UiStyle.draw_glyph(self, glyph, Rect2(11, (size.y - s) * 0.5, s, s), c)
+			var x := (size.x - s) * 0.5 if text == "" else 11.0
+			UiStyle.draw_glyph(self, glyph, Rect2(x, (size.y - s) * 0.5, s, s), c)
 		if has_focus(true):
 			var inset := r.grow(-4)
 			for seg: Array in [[inset.position, Vector2(inset.end.x, inset.position.y)], [Vector2(inset.end.x, inset.position.y), inset.end],
@@ -1027,14 +1031,10 @@ class RetroWindow extends PanelContainer:
 		t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(t)
-		close_button = RetroButton.new("", "", 28)
-		close_button.custom_minimum_size = Vector2(32, 28)
+		close_button = RetroButton.new("", "cross", 28)
+		close_button.custom_minimum_size = Vector2(34, 28)
 		close_button.tooltip_text = "Cerrar"
 		row.add_child(close_button)
-		var cross := UiStyle.Glyph.new("cross", ComputerScreen.SYS_TEXT, 14.0)
-		cross.set_anchors_preset(Control.PRESET_CENTER)
-		cross.position = Vector2(9, 7)
-		close_button.add_child(cross)
 		var margin := MarginContainer.new()
 		for side in ["left", "right", "top", "bottom"]:
 			margin.add_theme_constant_override("margin_" + side, 12)
