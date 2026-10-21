@@ -55,7 +55,6 @@ const NOISE_ENGINE_WEIGHT := 0.5
 const TRUCK_MAX_SPEED := 13.5     # m/s (unos 48 km/h)
 const TRUCK_SAFE_SPEED := 7.0     # m/s (unos 25 km/h): más rápido, lo de la caja se golpea
 const TRUCK_EXIT_SPEED := 1.5     # para bajarse hay que estar casi parado
-const ESCAPE_DISTANCE := 40.0     # metros desde donde estaba estacionado: se escaparon
 ## Sacudones del camión: lo que va en la caja recibe un golpe que se compara con el "break" de
 ## cada cosa frágil. Lomo de burro: golpe = velocidad × BUMP_K (despacio, menos de
 ## BUMP_SAFE_SPEED, no pasa nada). Con 0,55: el jarrón se rompe desde unos 23 km/h, el televisor
@@ -65,6 +64,23 @@ const BUMP_SAFE_SPEED := 3.0
 const BUMP_K := 0.55
 const TRUCK_CRASH_MIN := 14.0
 const TRUCK_CRASH_K := 0.12
+
+# --- El galpón y la venta ---
+## La noche termina cuando el camión queda parado SALE_STOP_TIME segundos adentro del Galpón 7:
+## el reducidor paga lo que hay en la caja. Si no llega a la cuota, el encargo se cancela.
+const SALE_STOP_TIME := 1.0
+const SALE_STOP_SPEED := 0.8      # m/s: "parado"
+## Golpes: cada golpe fuerte le baja el precio a una cosa un DENT_LOSS (hasta MAX_DENTS golpes).
+## Lo que no es frágil se golpea desde DENT_SPEED m/s; lo frágil, desde DENT_FRAGILE de lo que lo
+## rompe (el televisor, que se rompe a 6, se golpea desde 4,2: un lomo de burro a unos 28 km/h).
+const DENT_LOSS := 0.15
+const MAX_DENTS := 3
+const DENT_SPEED := 5.5
+const DENT_FRAGILE := 0.7
+const DENT_COOLDOWN := 0.6
+## El barrio de Don Ramón (metros desde la casa). Si la policía llega con el camión más cerca,
+## los agarran con todo; si ya se fue, solo detiene a los que se quedaron cerca de la casa.
+const BARRIO_RADIUS := 60.0
 
 # --- El dueño ---
 const OWNER_WALK := 2.2           # en pantuflas, investigando

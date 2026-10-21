@@ -1,7 +1,8 @@
 class_name Hud
 extends CanvasLayer
 ## Interfaz durante la partida: reloj, botín en el camión, estado de Don Ramón, medidor de la voz,
-## ayuda contextual, avisos, menú de pausa y resultados de la noche. Todo se arma por código.
+## flecha al Galpón 7, ayuda contextual, avisos, menú de pausa y resultados de la noche.
+## Todo se arma por código.
 
 var world: World
 
@@ -15,6 +16,9 @@ var _voice_word: Label
 var _prompt: Label
 var _speed: Label
 var _speed_warn: Label
+var _gps: Control
+var _gps_arrow: Polygon2D
+var _gps_text: Label
 var _feed: VBoxContainer
 var _players: Label
 var _banner: Label
@@ -36,6 +40,7 @@ func _ready() -> void:
 	_build_owner(root)
 	_build_voice(root)
 	_build_center(root)
+	_build_gps(root)
 	_build_feed(root)
 	_build_pause(root)
 	_build_results(root)
@@ -171,6 +176,34 @@ func _build_center(root: Control) -> void:
 	_banner.visible = false
 	root.add_child(_banner)
 
+## Flecha que apunta al Galpón 7 (cuando van en el camión o ya salieron del barrio).
+func _build_gps(root: Control) -> void:
+	_gps = PanelContainer.new()
+	_gps.add_theme_stylebox_override("panel", _panel_style(0.5))
+	_gps.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	_gps.position = Vector2(-120, 86)
+	_gps.size = Vector2(240, 56)
+	_gps.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_gps.visible = false
+	root.add_child(_gps)
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 10)
+	_gps.add_child(row)
+	var holder := Control.new()
+	holder.custom_minimum_size = Vector2(44, 44)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(holder)
+	_gps_arrow = Polygon2D.new()
+	_gps_arrow.polygon = PackedVector2Array([Vector2(0, -19), Vector2(14, 15), Vector2(0, 7), Vector2(-14, 15)])
+	_gps_arrow.color = Color(1.0, 0.75, 0.2)
+	_gps_arrow.position = Vector2(22, 22)
+	holder.add_child(_gps_arrow)
+	_gps_text = _label("", 20, Color(1.0, 0.85, 0.5))
+	_gps_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_gps_text.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	row.add_child(_gps_text)
+
 func _build_feed(root: Control) -> void:
 	_players = _label("", 16, Color(0.85, 0.9, 1.0))
 	_players.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -250,6 +283,7 @@ func _process(delta: float) -> void:
 		if not _pause.visible and not _results.visible and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and DisplayServer.get_name() != "headless":
 			_prompt.text = "Haz clic en el juego para controlar a tu mudancero"
 		_update_speed(p)
+		_update_gps(p)
 	_update_clock()
 	_update_owner()
 	_update_voice()
@@ -272,6 +306,21 @@ func _update_speed(p: Player) -> void:
 	_speed_warn.visible = fast
 	if fast:
 		_speed_warn.modulate.a = 0.6 + 0.4 * absf(sin(Time.get_ticks_msec() * 0.008))
+
+func _update_gps(p: Player) -> void:
+	_gps.visible = (p.seat >= 0 or bool(world.game.get("away", false))) and not world.night_over()
+	if not _gps.visible:
+		return
+	var cam := get_viewport().get_camera_3d()
+	var from := world.truck.global_position if p.seat >= 0 else p.global_position
+	var to := CityBuilder.WAREHOUSE - from
+	to.y = 0.0
+	_gps_text.text = "Galpón 7 · %d m" % roundi(to.length())
+	if cam:
+		var b := cam.global_transform.basis
+		var fwd := Vector3(-b.z.x, 0, -b.z.z).normalized()
+		var right := Vector3(b.x.x, 0, b.x.z).normalized()
+		_gps_arrow.rotation = atan2(to.dot(right), to.dot(fwd))
 
 func _update_clock() -> void:
 	if not world.game.has("time_left"):
@@ -362,7 +411,7 @@ func hide_banner() -> void:
 # ---------------------------------------------------------------- resultados
 
 const REASONS := {
-	"leave": "¡Se fueron con el camión!",
+	"sold": "¡Vendido en el Galpón 7!",
 	"cancel": "Misión cancelada",
 	"police": "¡Llegó la policía!",
 	"dawn": "Amaneció...",
@@ -381,8 +430,13 @@ func _show_results(res: Dictionary) -> void:
 	_results_box.add_child(star_label)
 	var verdict := "¡Cumplieron la cuota!" if stars > 0 else "No llegaron a la cuota."
 	var lines := "Botín en el camión: $%d   (cuota $%d)   %s" % [res["value"], res["quota"], verdict]
-	if res["reason"] == "cancel":
-		lines += "\nSe fueron antes de llegar a la cuota: el encargo se cancela y se pierde todo lo cargado."
+	match res["reason"]:
+		"cancel":
+			lines += "\nLlegaron al galpón sin la cuota: el Flaco no les compra nada y el encargo se cancela."
+		"dawn":
+			lines += "\nAmaneció antes de llegar al galpón: hay que devolver todo lo cargado."
+		"police":
+			lines += "\nLa policía los agarró con el camión en el barrio: se pierde todo lo cargado."
 	if int(res["fines"]) > 0:
 		lines += "\nMultas por los que se quedaron atrás: -$%d" % res["fines"]
 	lines += "\nGanancia de la noche: $%d   ·   Plata acumulada: $%d" % [res["total"], res["bank"]]
@@ -390,6 +444,7 @@ func _show_results(res: Dictionary) -> void:
 	var summary := _label(lines, 18)
 	summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_results_box.add_child(summary)
+	_add_sold_list(res)
 	# Tabla por jugador.
 	var grid := GridContainer.new()
 	grid.columns = 6
@@ -425,6 +480,32 @@ func _show_results(res: Dictionary) -> void:
 	_pause.visible = false
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+## Lo que se llevó el reducidor (o lo que había en el camión, si no hubo venta).
+func _add_sold_list(res: Dictionary) -> void:
+	var sold: Array = res.get("sold", [])
+	if sold.is_empty():
+		return
+	var head := "Lo que les compró el Flaco:" if res["reason"] == "sold" else "Lo que había en el camión:"
+	var title := _label(head, 16, Color(0.75, 0.75, 0.8))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_results_box.add_child(title)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 18)
+	var shown := mini(sold.size(), 12)
+	for i in shown:
+		var it: Array = sold[i]
+		var dented := int(it[2]) > 0
+		grid.add_child(_label(String(it[0]) + (" (con golpes)" if dented else ""), 15, Color(1.0, 0.7, 0.55) if dented else Color.WHITE))
+		grid.add_child(_label("$%d" % int(it[1]), 15, Color(0.55, 1.0, 0.55)))
+	var center := CenterContainer.new()
+	center.add_child(grid)
+	_results_box.add_child(center)
+	if sold.size() > shown:
+		var more := _label("...y %d cosas más." % (sold.size() - shown), 14, Color(0.75, 0.75, 0.8))
+		more.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_results_box.add_child(more)
 
 func _hide_results() -> void:
 	if not _results.visible:

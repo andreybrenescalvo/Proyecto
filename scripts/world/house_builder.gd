@@ -1,7 +1,7 @@
 class_name HouseBuilder
 extends RefCounted
-## Arma la casa de Don Ramón, el barrio y el camión de mudanzas con cajas texturizadas
-## (las texturas las genera tools/generate_textures.py).
+## Arma la casa de Don Ramón, su patio y el camión de mudanzas con cajas texturizadas
+## (las texturas las genera tools/generate_textures.py). La ciudad alrededor la arma CityBuilder.
 ## También devuelve los datos que usa la partida: puertas, objetos para robar, tablas que crujen
 ## y los puntos por donde camina el dueño.
 ##
@@ -42,13 +42,12 @@ static func build(world: Node3D) -> Dictionary:
 	root.name = "House"
 	world.add_child(root)
 	_environment(root, refs)
-	_grounds(root)
+	CityBuilder.build(root)
 	_shell(root, refs)
 	_rooms(root, refs)
 	_furniture(root, refs)
 	_yard(root)
 	_truck(root, refs)
-	_neighborhood(root)
 	refs["doors"] = _doors(root)
 	refs["items"] = _items()
 	refs["boards"] = _boards(root)
@@ -97,9 +96,6 @@ const EJECT_POS := Vector3(-1.5, 0.2, 10.5)
 const SPAWNS := [Vector3(-6.8, 0.1, 16.2), Vector3(-5.4, 0.1, 16.2), Vector3(-6.8, 0.1, 17.2), Vector3(-5.4, 0.1, 17.2)]
 ## Zona del camión: quien está acá cuando se van, se va con el camión.
 const TRUCK_ZONE := Rect2(-15.5, 15.4, 10.5, 6.0)
-## Lomos de burro de la calle (en X), y su tamaño: largo, alto y ancho (de vereda a vereda).
-const SPEED_BUMPS_X := [-28.0, -44.0]
-const SPEED_BUMP_SIZE := Vector3(1.5, 0.14, 7.0)
 const HOUSE_RECT := Rect2(-8.0, -6.0, 16.0, 12.0)
 
 static func in_house(p: Vector3) -> bool:
@@ -347,77 +343,6 @@ static func _prism(root: Node3D, x0: float, x1: float, half_depth: float, base_y
 	root.add_child(mi)
 	return mi
 
-# ---------------------------------------------------------------- terreno
-
-static func _grounds(root: Node3D) -> void:
-	_solid(root, Vector3(140, 1, 140), Vector3(0, -0.5, 0), _tex("grass", Color.WHITE, 3.0, 1.0))
-	# Calle, veredas y líneas.
-	_box(root, Vector3(140, 0.02, 6.8), Vector3(0, 0.01, 21.0), _tex("asphalt", Color.WHITE, 4.0, 0.95))
-	_box(root, Vector3(140, 0.03, 2.0), Vector3(0, 0.015, 16.6), _tex("concrete", Color.WHITE, 2.0, 0.9))
-	_box(root, Vector3(140, 0.03, 2.0), Vector3(0, 0.015, 25.4), _tex("concrete", Color.WHITE, 2.0, 0.9))
-	var line := Mats.color(Color(0.85, 0.78, 0.45), 0.8)
-	for i in 22:
-		_box(root, Vector3(1.8, 0.025, 0.14), Vector3(-63.0 + i * 6.0, 0.016, 21.0), line)
-	for side in [-1.0, 1.0]:
-		_box(root, Vector3(140, 0.05, 0.18), Vector3(0, 0.025, 21.0 + side * 3.45), _tex("concrete", Color(0.8, 0.8, 0.8), 1.0))
-	# Lomos de burro antes de la salida: si se pasan rápido, lo de la caja salta y se golpea.
-	for x: float in SPEED_BUMPS_X:
-		_speed_bump(root, Vector3(x, 0.0, 21.0))
-	# Bordes invisibles del mundo. Al oeste, la calle sigue: por ahí se escapa el camión.
-	for d in [[Vector3(80, 4, 1), Vector3(0, 2, 27.0)], [Vector3(1, 4, 29.4), Vector3(-34.0, 2, 0.7)],
-			[Vector3(1, 4, 60), Vector3(34.0, 2, 6)], [Vector3(80, 4, 1), Vector3(0, 2, -14.0)],
-			[Vector3(36, 4, 1), Vector3(-52.0, 2, 15.4)], [Vector3(36, 4, 1), Vector3(-52.0, 2, 26.6)],
-			[Vector3(1, 4, 12), Vector3(-70.0, 2, 21.0)]]:
-		_collider(root, d[0], d[1])
-	# Cartel de la salida del barrio.
-	var post := _tex("metal", Color(0.3, 0.3, 0.32), 1.0, 0.5)
-	_solid(root, Vector3(0.1, 2.6, 0.1), Vector3(-38.0, 1.3, 16.2), post)
-	_box(root, Vector3(0.05, 0.6, 1.6), Vector3(-38.0, 2.5, 16.2), Mats.color(Color(0.1, 0.35, 0.2), 0.6))
-	var exit_sign := Label3D.new()
-	exit_sign.text = "← Salida del barrio"
-	exit_sign.font_size = 40
-	exit_sign.pixel_size = 0.005
-	exit_sign.position = Vector3(-37.96, 2.5, 16.2)
-	exit_sign.rotation_degrees.y = 90.0
-	root.add_child(exit_sign)
-
-## Lomo de burro: un triángulo bajo y ancho de vereda a vereda, pintado de amarillo y negro.
-static func _speed_bump(root: Node3D, p: Vector3) -> void:
-	var prism := PrismMesh.new()
-	prism.size = Vector3(SPEED_BUMP_SIZE.x, SPEED_BUMP_SIZE.y, SPEED_BUMP_SIZE.z)
-	var body := StaticBody3D.new()
-	body.collision_layer = Config.L_WORLD
-	body.collision_mask = 0
-	body.position = p + Vector3(0, SPEED_BUMP_SIZE.y * 0.5, 0)
-	root.add_child(body)
-	var shape := CollisionShape3D.new()
-	shape.shape = prism.create_convex_shape()
-	body.add_child(shape)
-	var mi := MeshInstance3D.new()
-	mi.mesh = prism
-	mi.material_override = _tex("asphalt", Color(0.75, 0.75, 0.75), 2.0, 0.9)
-	body.add_child(mi)
-	# Franjas amarillas.
-	var paint := Mats.color(Color(0.95, 0.78, 0.15), 0.7)
-	var n := 7
-	for i in n:
-		var z := -SPEED_BUMP_SIZE.z * 0.5 + (i + 0.5) * SPEED_BUMP_SIZE.z / n
-		var stripe := MeshInstance3D.new()
-		var sm := PrismMesh.new()
-		sm.size = Vector3(SPEED_BUMP_SIZE.x + 0.02, SPEED_BUMP_SIZE.y + 0.01, SPEED_BUMP_SIZE.z / n * 0.5)
-		stripe.mesh = sm
-		stripe.material_override = paint
-		stripe.position = Vector3(0, 0.003, z)
-		body.add_child(stripe)
-	var sign := Label3D.new()
-	sign.text = "LOMO DE BURRO"
-	sign.font_size = 48
-	sign.pixel_size = 0.006
-	sign.modulate = Color(0.95, 0.8, 0.2, 0.9)
-	sign.position = Vector3(5.0, 0.03, 0)
-	sign.rotation_degrees = Vector3(-90, 90, 0)   # se lee viniendo desde la casa (hacia el oeste)
-	body.add_child(sign)
-
 ## Árbol: tronco y copa en dos o tres bloques.
 static func _tree(root: Node3D, p: Vector3, big := 1.0) -> void:
 	_solid(root, Vector3(0.35, 2.2, 0.35) * Vector3(big, 1, big), p + Vector3(0, 1.1, 0), _tex("bark", Color.WHITE, 1.0))
@@ -446,19 +371,6 @@ static func _car(root: Node3D, p: Vector3, rot_y: float, c: Color) -> void:
 	for sx in [-0.65, 0.65]:
 		var tail := Mats.add_box(car, Vector3(0.3, 0.12, 0.04), Vector3(sx, 0.75, -2.11), Color(0.5, 0.05, 0.05))
 		tail.material_override = Mats.color(Color(0.6, 0.05, 0.05), 0.4, 0.6)
-
-static func _street_lamp(root: Node3D, p: Vector3, arm_dir: float) -> void:
-	var dark := Mats.tex("metal", Color(0.25, 0.25, 0.27), 1.0, true, 0.5)
-	_solid(root, Vector3(0.15, 4.5, 0.15), p + Vector3(0, 2.25, 0), dark)
-	_box(root, Vector3(0.12, 0.1, 0.9), p + Vector3(0, 4.5, arm_dir * 0.4), dark)
-	var bulb := Mats.add_box(root, Vector3(0.3, 0.12, 0.25), p + Vector3(0, 4.42, arm_dir * 0.75), Color(1, 0.75, 0.4))
-	bulb.material_override = Mats.color(Color(1, 0.75, 0.4), 0.5, 3.0)
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.72, 0.4)
-	light.light_energy = 1.6
-	light.omni_range = 14.0
-	light.position = p + Vector3(0, 4.2, arm_dir * 0.75)
-	root.add_child(light)
 
 # ---------------------------------------------------------------- paredes
 
@@ -812,90 +724,3 @@ static func _truck(root: Node3D, refs: Dictionary) -> void:
 	truck.park(TRUCK_POS, TRUCK_ROT)
 	refs["truck"] = truck
 	refs["truck_area"] = truck.area
-
-# ---------------------------------------------------------------- el barrio
-
-## Las casas de los vecinos: no se puede entrar, pero cada una tiene su estilo
-## (revestimiento, techo, uno o dos pisos, garaje, ventanas prendidas o apagadas).
-static func _neighborhood(root: Node3D) -> void:
-	var lots := [
-		[Vector3(-26.0, 0, 0.0), 0.0, 1],
-		[Vector3(25.0, 0, 1.0), 0.0, 2],
-		[Vector3(-33.0, 0, 34.0), 180.0, 3],
-		[Vector3(-18.0, 0, 34.0), 180.0, 4],
-		[Vector3(-3.0, 0, 34.0), 180.0, 5],
-		[Vector3(12.0, 0, 34.0), 180.0, 6],
-		[Vector3(27.0, 0, 34.0), 180.0, 7],
-	]
-	for lot: Array in lots:
-		_neighbor(root, lot[0], lot[1], lot[2])
-	for p in [Vector3(-18.0, 0, 16.0), Vector3(14.0, 0, 16.0)]:
-		_street_lamp(root, p, 1.0)
-	for p in [Vector3(-28.0, 0, 26.0), Vector3(-6.0, 0, 26.0), Vector3(18.0, 0, 26.0)]:
-		_street_lamp(root, p, -1.0)
-	_car(root, Vector3(2.0, 0, 23.3), 90.0, Color(0.2, 0.3, 0.5))
-	_car(root, Vector3(20.0, 0, 23.3), -90.0, Color(0.75, 0.75, 0.72))
-	_car(root, Vector3(-24.0, 0, 23.3), 90.0, Color(0.15, 0.15, 0.16))
-	for p in [Vector3(-20.0, 0, 9.0), Vector3(19.0, 0, 12.0), Vector3(-10.0, 0, 29.5), Vector3(5.0, 0, 29.5), Vector3(20.0, 0, 29.5)]:
-		_tree(root, p, 1.15)
-
-static func _neighbor(root: Node3D, pos: Vector3, rot: float, seed: int) -> void:
-	var r := RandomNumberGenerator.new()
-	r.seed = seed * 7919
-	var style := make_style(seed * 31 + 5)
-	var house := Node3D.new()
-	house.position = pos
-	house.rotation_degrees.y = rot
-	root.add_child(house)
-	var w := r.randf_range(10.0, 13.0)
-	var d := r.randf_range(8.0, 10.0)
-	var floors := 2 if r.randf() < 0.45 else 1
-	var hh := 2.9 * floors
-	var ext := style_material(style["ext"])
-	var trim := style_material(style["trim"])
-	_solid(house, Vector3(w, hh, d), Vector3(0, hh * 0.5, 0), ext)
-	_box(house, Vector3(w + 0.04, 0.5, d + 0.04), Vector3(0, 0.25, 0), style_material(style["found"]))
-	var roof := _prism(house, -w * 0.5 - 0.5, w * 0.5 + 0.5, d * 0.5 + 0.6, hh, hh + r.randf_range(2.0, 3.2))
-	roof.material_override = style_material(style["roof"])
-	for s in [-1.0, 1.0]:
-		_box(house, Vector3(w + 1.0, 0.18, 0.06), Vector3(0, hh - 0.02, s * (d * 0.5 + 0.62)), trim)
-	# Frente: puerta con alero y ventanas (algunas con luz adentro).
-	var front := d * 0.5
-	var door_x := r.randf_range(-w * 0.25, w * 0.25)
-	_box(house, Vector3(1.0, 2.1, 0.08), Vector3(door_x, 1.05, front + 0.04), Mats.tex("door_wood", style["front_door"], 1.0, true, 0.5))
-	_box(house, Vector3(1.3, 0.1, 0.1), Vector3(door_x, 2.15, front + 0.05), trim)
-	_box(house, Vector3(2.2, 0.12, 1.2), Vector3(door_x, 2.6, front + 0.6), style_material(style["roof"]), Vector3(-8, 0, 0))
-	var porch := OmniLight3D.new()
-	porch.light_color = Color(1.0, 0.78, 0.5)
-	porch.light_energy = 0.6 if r.randf() < 0.6 else 0.0
-	porch.omni_range = 4.5
-	porch.position = Vector3(door_x, 2.4, front + 0.5)
-	house.add_child(porch)
-	var lit := Mats.color(Color(1.0, 0.8, 0.5), 0.5, 1.6)
-	var dark := Mats.color(Color(0.18, 0.24, 0.36), 0.1, 0.35)
-	var shutter := style_material(style["shutter"])
-	for fl in floors:
-		for wx in [-w * 0.36, -w * 0.15, w * 0.15, w * 0.36]:
-			if fl == 0 and absf(wx - door_x) < 1.5:
-				continue
-			var wy := 1.5 + fl * 2.9
-			_box(house, Vector3(1.1, 1.2, 0.06), Vector3(wx, wy, front + 0.03), lit if r.randf() < 0.3 else dark)
-			_box(house, Vector3(1.24, 0.08, 0.1), Vector3(wx, wy + 0.62, front + 0.05), trim)
-			_box(house, Vector3(1.3, 0.06, 0.16), Vector3(wx, wy - 0.63, front + 0.08), trim)
-			for s in [-1.0, 1.0]:
-				_box(house, Vector3(0.34, 1.25, 0.05), Vector3(wx + s * 0.78, wy, front + 0.04), shutter)
-	# Garaje al costado en algunas.
-	if r.randf() < 0.5:
-		var gx := (w * 0.5 + 2.0) * (1.0 if r.randf() < 0.5 else -1.0)
-		_solid(house, Vector3(4.0, 2.7, d * 0.8), Vector3(gx, 1.35, -d * 0.1), ext)
-		_box(house, Vector3(4.2, 0.15, d * 0.8 + 0.3), Vector3(gx, 2.75, -d * 0.1), style_material(style["roof"]))
-		_box(house, Vector3(3.0, 2.2, 0.06), Vector3(gx, 1.1, d * 0.3 + 0.03), Mats.tex("siding", Color(0.9, 0.9, 0.88), 0.6, true, 0.5))
-		_box(house, Vector3(3.2, 0.03, 6.4), Vector3(gx, 0.015, d * 0.3 + 3.2), _tex("concrete", Color(0.9, 0.9, 0.9), 2.0))
-		if r.randf() < 0.6:
-			_car(house, Vector3(gx, 0, d * 0.3 + 4.0), 180.0, Color.from_hsv(r.randf(), 0.5, r.randf_range(0.3, 0.8)))
-	else:
-		_box(house, Vector3(1.2, 0.03, 6.0), Vector3(door_x, 0.016, front + 3.0), _tex("stone", Color(0.9, 0.9, 0.9), 1.0))
-	if r.randf() < 0.5:
-		_box(house, Vector3(0.7, 2.0, 0.7), Vector3(w * 0.3, hh + 1.6, -d * 0.15), _tex("brick", Color(0.85, 0.8, 0.78), 1.0))
-	for s in [-1.0, 1.0]:
-		_bush(house, Vector3(s * w * 0.3, 0, front + 0.6), Vector3(w * 0.25, 0.8, 0.8))

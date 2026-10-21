@@ -4,7 +4,8 @@ Cooperativo de 1 a 4 jugadores en primera persona. Son una empresa de mudanzas q
 "muda" casas sin permiso: hay que cargar el camión con lo que valga la pena **sin despertar a
 Don Ramón**, el dueño, que duerme en su pieza. **El juego escucha el micrófono**: si alguien
 habla fuerte o se ríe, Don Ramón se mueve en la cama. Si se despierta, sale a buscar con la
-linterna.
+linterna. Después hay que cruzar la ciudad manejando hasta el **Galpón 7**, donde el reducidor
+compra todo lo que llevan en la caja.
 
 Es el **primer prototipo** de la idea del [plan del juego](docs/plan-juego-steam.md) (sección 8):
 solo la parte de la noche, para comprobar si el robo en silencio es divertido antes de agregar
@@ -17,8 +18,12 @@ la mudanza de día, más casas, arte y sonido de verdad.
 | ![Calle con casas vecinas distintas, autos estacionados y el camión de mudanzas](docs/capturas/barrio.png) | ![Cocina con baldosas, mesada de mármol y alacenas](docs/capturas/cocina.png) |
 | **El dormitorio** | **Don Ramón despierto, buscando** |
 | ![Dormitorio con empapelado, cortinas y piso de madera; Don Ramón dormido](docs/capturas/dormitorio.png) | ![Don Ramón en pijama y gorro de dormir caminando por el pasillo](docs/capturas/don_ramon.png) |
-| **Escapando en el camión** | **El lomo de burro (despacio, que se rompe todo)** |
-| ![El camión de mudanzas andando por la calle de noche, con el velocímetro y el aviso de ir despacio](docs/capturas/manejando.png) | ![Lomo de burro pintado de amarillo antes de la salida del barrio](docs/capturas/lomo_de_burro.png) |
+| **La ciudad desde arriba** | **La avenida, con los comercios** |
+| ![Vista aérea de noche: manzanas de casas, la avenida con comercios, la plaza con su obelisco y la estación de servicio](docs/capturas/ciudad.png) | ![La avenida de noche con negocios, toldos, carteles, autos estacionados y faroles](docs/capturas/avenida.png) |
+| **Rumbo al Galpón 7 (la flecha marca el camino)** | **El Flaco les compra todo** |
+| ![El camión entrando al Galpón 7 en la zona industrial, con la flecha y los metros arriba de la pantalla](docs/capturas/galpon_7.png) | ![Pantalla de venta: la lista de lo que compró el reducidor y lo que pagó por cada cosa](docs/capturas/venta.png) |
+| **Manejando por el barrio** | **El lomo de burro (despacio, que se rompe todo)** |
+| ![El camión de mudanzas doblando en una esquina, con el velocímetro](docs/capturas/manejando.png) | ![Lomo de burro pintado de amarillo en la calle Los Aromos](docs/capturas/lomo_de_burro.png) |
 | **Los mudanceros (uno por jugador)** | |
 | ![Tres mudanceros animados en la vereda: remera naranja, camisa a cuadros y remera verde](docs/capturas/mudanceros.png) | |
 
@@ -32,8 +37,15 @@ la mudanza de día, más casas, arte y sonido de verdad.
 - **Cada noche la casa es distinta:** cambia la fachada (madera de colores, ladrillo o estuco),
   el techo (tejas asfálticas o de arcilla), los postigos, la puerta, la pintura o el empapelado de
   cada cuarto, los pisos, las cortinas y la frazada. Todos los jugadores ven el mismo estilo.
-- **El barrio:** siete casas vecinas distintas (de uno o dos pisos, con o sin garaje, ventanas
-  prendidas o apagadas), autos estacionados, faroles, cercos vivos y un camino de piedra.
+- **La ciudad:** calles en cuadrícula que se conectan entre sí, con esquinas, sendas peatonales
+  y carteles con el nombre de cada calle. Tres barrios pegados, cada uno con su estilo:
+  **Villa Esperanza** (casas angostas de techo plano, tanque de agua y rejas), **Los Aromos**
+  (el de Don Ramón: casas de madera o ladrillo con jardín) y **Las Lomas** (casas grandes de dos
+  pisos, garaje doble y ligustro). La **Avenida Central** tiene comercios (panadería, ferretería,
+  farmacia de turno, pizzería, kiosco 24 hs, bar...), una **estación de servicio** y la **plaza**
+  con su obelisco, glorieta y juegos. Al norte hay una cancha de fútbol; cruzando las **vías del
+  tren** (paso a nivel), la **zona industrial** con galpones, contenedores y camiones viejos.
+  Hay autos estacionados, faroles, árboles y ventanas prendidas por todos lados.
 - **24 objetos con física:** televisor, consola, joyero (en el velador, al lado de su cabeza),
   notebook, caja fuerte, sillón, cuadros colgados... y cosas sin valor que solo hacen ruido
   (sillas, platos, una olla, un patito de hule). Lo frágil se rompe si se cae o se lanza.
@@ -53,13 +65,23 @@ la mudanza de día, más casas, arte y sonido de verdad.
   faros que alumbran y sombra. Uno se sube a manejar (E en la puerta del conductor, del lado de
   la calle) y los demás de acompañantes (E en la puerta de la vereda o en la rampa de atrás).
   El motor hace ruido: arrancar al lado de la casa también se oye.
-- **Escapar:** la noche termina cuando el camión sale del barrio (calle abajo, pasando el cartel
-  "Salida del barrio"). Los que no van arriba cuentan como detenidos (multa de $300 cada uno).
-  **Si se van antes de llegar a la cuota, el encargo se cancela y se pierde todo lo cargado.**
-- **Cuidado con lo de la caja:** va suelto, así que un choque o un **lomo de burro** pasado
-  rápido lo sacude, y lo frágil se rompe (el jarrón desde unos 23 km/h, el televisor desde unos
-  39). Pasado el límite de 25 km/h, la pantalla avisa "¡Despacio!". La culpa es del que maneja.
-- **Resultados de la noche:** botín contra la cuota, de 0 a 3 estrellas y "premios":
+- **El Galpón 7 y el reducidor:** la noche termina cuando dejan el camión parado adentro del
+  Galpón 7 (en la zona industrial, a unos 400 m manejando). Ahí "el Flaco" les compra solo
+  **todo lo que hay en la caja**. Arriba de la pantalla, una flecha marca hacia dónde queda y a
+  cuántos metros. Reglas:
+  - **Sin la cuota, no hay trato:** si llegan al galpón con menos, el encargo se cancela y no cobran nada.
+  - **Si amanece antes de llegar**, hay que devolver todo: se pierde lo cargado.
+  - **La policía** (llega 60 s después de que Don Ramón agarra a alguien): si encuentra el camión
+    todavía en el barrio, los agarra con todo. Si ya se fueron, solo detiene a los que se
+    quedaron cerca de la casa (multa de $300 cada uno).
+  - Los que no llegan al galpón (ni arriba del camión ni a pie) también pagan la multa.
+- **Cuidado con lo de la caja:** va suelto, así que un choque, un **lomo de burro** o el **paso a
+  nivel** pasado rápido lo sacude: lo frágil se rompe (el jarrón desde unos 23 km/h, el
+  televisor desde unos 39) y lo demás **se golpea**. Cada golpe fuerte le baja el precio un 15 %
+  (hasta tres golpes), y el Flaco lo paga así. Pasado el límite de 25 km/h, la pantalla avisa
+  "¡Despacio!". La culpa es del que maneja.
+- **Resultados de la noche:** botín contra la cuota, la lista de lo que compró el Flaco (con lo
+  golpeado marcado), de 0 a 3 estrellas y "premios":
   *El más ruidoso*, *Despertador humano* (quién lo despertó), *Manos de mantequilla*,
   *Imán de abuelos* y *Empleado del mes*. Después se puede jugar otra noche: la cuota sube
   y Don Ramón duerme más liviano.
@@ -136,8 +158,10 @@ para doblar y **Espacio** como freno de mano.
    se abre con **E** (hace un poco de ruido). La de la cocina, atrás, también sirve.
 3. Buscan lo que vale y lo llevan a la caja del camión. Lo chico se lleva en la mano; lo pesado, entre dos.
 4. Arriba de la pantalla se ve cómo duerme Don Ramón. Si la barra se vacía, se despierta.
-5. Cuando tengan la cuota (o si viene la policía), todos arriba del camión y a manejar hasta la
-   salida del barrio. Despacio por los lomos de burro, que lo de la caja se rompe.
+5. Cuando tengan la cuota (o si viene la policía), todos arriba del camión y a manejar hasta el
+   **Galpón 7**: la flecha de arriba marca el camino. Despacio por los lomos de burro y el paso a
+   nivel, que lo de la caja se rompe o se golpea. Adentro del galpón, paren sobre el rectángulo
+   amarillo: el Flaco revisa y les paga.
 
 ## Estructura del proyecto
 
@@ -157,7 +181,9 @@ scripts/
     fx.gd                  Partículas, destellos y textos flotantes
   world/
     world.gd               La partida: reglas, ruido, camión, policía, red (RPC)
-    house_builder.gd       La casa, sus estilos y el barrio (con los lomos de burro); puntos por donde camina el dueño
+    house_builder.gd       La casa, sus estilos y su patio; puntos por donde camina el dueño
+    city_builder.gd        La ciudad: calles, barrios, comercios, plaza, zona industrial y el Galpón 7
+    mesh_batch.gd          Junta miles de cajas en pocas mallas (para que la ciudad ande en la web)
     truck.gd               El camión: física de vehículo, asientos, rampa, faros y sacudones de la caja
     house_owner.gd         Don Ramón: oído, vista y máquina de estados
     door.gd                Puertas con bisagra
@@ -167,6 +193,7 @@ scripts/
   ui/hud.gd, ui/menu.gd    Interfaz (y resultados de la noche)
   dev/autotest.gd          Prueba automática anfitrión + cliente
   dev/photo_tour.gd        Recorrido de capturas de pantalla
+  dev/autopilot.gd         Piloto automático (maneja hasta el Galpón 7 en las pruebas y las fotos)
 assets/textures/           Texturas (color + relieve) generadas por tools/generate_textures.py
 assets/characters/         Personajes (glTF) y animaciones (animaciones.glb), de tools/personajes/
 .claude/                   El "estudio" de IA: agentes, skills, hooks y reglas
@@ -209,11 +236,14 @@ Todo está en `scripts/core/config.gd`. Lo más importante para probar con amigo
 - `NOISE_*`: cuánto ruido hace cada cosa (pasos, tablas, arrastrar, romper).
 - `OWNER_*`: velocidad, distancia a la que ve y cuánto tarda en rendirse.
 - `ITEMS`: valor, peso y fragilidad de cada objeto.
-- `TRUCK_*` y `BUMP_*`: velocidad del camión, desde cuándo avisa "¡Despacio!", qué tan fuerte
-  sacude un lomo de burro y desde qué distancia cuenta como escapada.
+- `TRUCK_*` y `BUMP_*`: velocidad del camión, desde cuándo avisa "¡Despacio!" y qué tan fuerte
+  sacude un lomo de burro.
+- `DENT_*`, `SALE_*` y `BARRIO_RADIUS`: cuánto baja el precio lo golpeado, cuánto hay que quedarse
+  parado en el galpón y hasta dónde llega "el barrio" para la policía.
 
 Los estilos de casa están en `scripts/world/house_builder.gd` (`FACADES`, `PAINTS`, `PAPERS`,
-`WOODS`, `CARPETS`, `TILES`). Para cambiar una textura: editar `tools/generate_textures.py`,
+`WOODS`, `CARPETS`, `TILES`). El trazado de la ciudad (calles, nombres, comercios, galpones) está
+en `scripts/world/city_builder.gd`. Para cambiar una textura: editar `tools/generate_textures.py`,
 correr `python3 tools/generate_textures.py` y abrir el proyecto en Godot (las reimporta solo).
 
 F3 muestra en el juego la alerta en números y los últimos ruidos que oyó, con cuánto subió cada uno.
@@ -224,9 +254,11 @@ Recorren las mecánicas principales con un anfitrión y un cliente reales conect
 que la voz suba la alerta (y que un susurro lejos no), la puerta que chilla, cargar el joyero en
 el camión, romper el jarrón, el sillón entre dos (y arrastrado por uno), que Don Ramón se
 despierte, persiga y eche a alguien, subirse a manejar con un acompañante, arrancar, frenar,
-bajarse, pasar un lomo de burro despacio (el televisor llega entero) y otro rápido (se rompe),
-escapar sin la cuota (misión cancelada) y empezar otra noche. Al final comprueban que el cliente
-vea lo mismo que el anfitrión (también el camión y quién va sentado).
+bajarse, pasar un lomo de burro despacio (el televisor llega entero) y otro rápido (se rompe, y
+el joyero se golpea y vale menos), manejar por la ciudad hasta el Galpón 7 con un piloto
+automático y vender, las cuentas de la venta (sin cuota, al amanecer o con la policía no se
+cobra), empezar otra noche y que la policía los agarre con el camión en el barrio. Al final
+comprueban que el cliente vea lo mismo que el anfitrión (también el camión y quién va sentado).
 
 ```sh
 godot --headless --path . -- --host --autotest --expect=1 &
@@ -234,8 +266,8 @@ godot --headless --path . -- --join=127.0.0.1 --autotest
 ```
 
 Cada una termina con `AUTOTEST OK` (o con la lista de lo que falló). También hay un recorrido que guarda
-capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida` (con `--tour-drive`
-saca solo las del camión andando).
+capturas de pantalla: `godot --path . -- --host --tour=/carpeta/de/salida` (con `--tour-city`
+saca solo las de la ciudad, y con `--tour-drive` solo el viaje en camión hasta el galpón).
 
 ## Trabajar con el "estudio" de IA
 
@@ -265,7 +297,10 @@ lo pidan.
 - **Probarlo con amigos** y ajustar el oído de Don Ramón: es lo único que dice si es divertido.
 - **Voz por proximidad dentro del juego** (con la API de voz de Steam): escuchar a los demás más
   fuerte cuanto más cerca estén. Es la mitad de la gracia en los clips.
-- La **mudanza de día** (ver el plan): ver la casa por dentro antes de robarla.
+- La **mudanza de día** (ver el plan): ver la casa por dentro antes de robarla, con la ciudad
+  de día y gente en la calle.
+- En el Galpón 7: **comprar herramientas** con lo ganado (ganzúas, carrito, linterna mejor) y
+  **guardar la partida**.
 - Más casas para robar con otra distribución de cuartos (la abuela con gatos, el policía
   jubilado, la mansión) y la barra de sospecha.
 - Personajes: modelos realmente distintos (hombres y mujeres de distintas tez y contextura),

@@ -230,9 +230,15 @@ Cerrar el ciclo completo: robar → huir → vender → comprar → volver.
 - Camión de verdad, con física de vehículo y modo de conducción.
 - Lo que va en la caja se golpea y se rompe con frenazos, choques o yendo rápido.
 - Camino hasta el **almacén secreto**: ahí se descarga y se vende en el **mercado negro**.
+  *(Hecho, primera versión: la ciudad en cuadrícula con tres barrios pegados (Villa Esperanza,
+  Los Aromos y Las Lomas), la avenida con comercios, la plaza, la estación de servicio y la zona
+  industrial cruzando las vías. El almacén es el **Galpón 7**: hay que dejar el camión parado
+  adentro y "el Flaco" compra solo todo lo de la caja; lo golpeado vale menos. Una flecha marca
+  el camino. Sin la cuota no hay trato; si amanece antes de llegar, o la policía encuentra el
+  camión en el barrio, se pierde todo.)*
 - Mercado negro de **compra**: herramientas para las próximas noches.
 - Guardado de partida (plata y herramientas).
-- **Irse antes de la cuota cancela la misión y se pierde todo lo cargado.**
+- **Llegar al almacén sin la cuota cancela la misión y se pierde todo lo cargado.**
 
 ### Etapa 2: "La seguridad"
 Cada cosa con su minijuego, y las herramientas se compran en el mercado negro.

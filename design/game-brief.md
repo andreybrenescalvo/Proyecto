@@ -13,8 +13,10 @@ venden en el mercado negro de su almacén secreto.
 ## Player goal & fail state — what "working" looks like
 - Una noche sale bien cuando llegan al almacén con un botín de al menos la cuota del encargo y
   lo venden.
-- Se pierde si llega la policía (por una llamada) o amanece con ellos adentro. Si se van antes de
-  la cuota, la misión se cancela y **se pierde todo lo cargado** (no se vende nada).
+- Se pierde todo lo cargado si amanece antes de llegar al almacén, o si la policía (por una
+  llamada) encuentra el camión todavía en el barrio. Si llegan al almacén sin la cuota, la
+  misión se cancela y **no se vende nada**.
+- Lo que se golpea en el viaje (lomos de burro, paso a nivel, choques) vale menos al venderlo.
 
 ## MVP — what must exist to be the game
 - Personas con forma humana y animadas (caminar, correr, agacharse, cargar, dormir), con sombras
@@ -38,7 +40,8 @@ venden en el mercado negro de su almacén secreto.
 1. Personas animadas: jugadores y Don Ramón (modelos gratuitos de Quaternius, con sus animaciones).
 2. El camión nuevo (modelo de Kenney) con física de vehículo y modo de conducción.
 3. Que lo cargado se golpee y se rompa al manejar mal; la cuota y la cancelación al irse antes.
-4. El camino y el almacén secreto, y la venta en el mercado negro.
+4. El camino y el almacén secreto, y la venta en el mercado negro. *(Hecho: la ciudad con tres
+   barrios, comercios y zona industrial; el Galpón 7 con venta automática de todo lo de la caja.)*
 5. La compra de herramientas y el guardado de partida.
 6. Probarlo con amigos y ajustar.
 

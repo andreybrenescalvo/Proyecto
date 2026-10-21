@@ -65,6 +65,8 @@ var _impact_times := {}     # entidad -> último golpe (para no repetir el ruido
 var _loaded := {}           # entidad que está en el camión -> peer al que se le acreditó
 var _eject_timers := {}     # peer -> segundos que le quedan "a salvo" después de que lo echaron
 var _engine_timer := 0.0
+var _sale_timer := 0.0       # cuánto hace que el camión está parado adentro del galpón
+var _arrested := {}          # peer -> true: lo agarró la policía en lo de Don Ramón
 
 # --- en cada computadora ---
 var _siren: AudioStreamPlayer3D
@@ -78,9 +80,7 @@ func _ready() -> void:
 	moon = refs["moon"]
 	truck = refs["truck"]
 	truck.setup(is_server)
-	for x: float in HouseBuilder.SPEED_BUMPS_X:
-		var size := HouseBuilder.SPEED_BUMP_SIZE
-		truck.bumps.append(Rect2(x - size.x * 0.5, 21.0 - size.z * 0.5, size.x, size.z))
+	truck.bumps = CityBuilder.bump_rects()
 	if is_server:
 		truck.jolted.connect(_srv_on_truck_jolt)
 	truck_area = refs["truck_area"]
@@ -126,7 +126,7 @@ func _show_style(seed: int) -> void:
 	HouseBuilder.apply_style(house_refs, seed)
 
 func _intro_text() -> String:
-	return "Noche %d: la casa de Don Ramón. Carguen en el camión al menos $%d antes de que amanezca. ¡Y no lo despierten!" \
+	return "Noche %d: la casa de Don Ramón. Carguen al menos $%d y lleven el camión al Galpón 7 (zona industrial) antes de que amanezca. ¡Y no lo despierten!" \
 			% [int(game.get("night", 1)), int(game.get("quota", 0))]
 
 func _build_siren() -> void:
@@ -694,6 +694,7 @@ func _srv_on_impact(e: Entity, speed: float) -> void:
 	if _time - float(_impact_times.get(e.entity_id, -1.0)) < 0.15:
 		return
 	_impact_times[e.entity_id] = _time
+	_srv_maybe_dent(e, speed)
 	var loud := clampf(speed * sqrt(e.mass) * Config.NOISE_IMPACT_K, 0.0, 1.0)
 	if loud < 0.06:
 		return
@@ -704,6 +705,31 @@ func _srv_on_impact(e: Entity, speed: float) -> void:
 	elif e.item_id == "duck":
 		sound = "duck"
 	_srv_sound(sound, e.global_position, linear_to_db(clampf(loud * 1.6, 0.05, 1.5)), 1.4 - minf(e.mass / 60.0, 0.7))
+
+## Un golpe fuerte (sin llegar a romperlo) le baja el precio: el reducidor paga menos por lo golpeado.
+func _srv_maybe_dent(e: Entity, speed: float) -> void:
+	if e.value() <= 1 or e.dents() >= Config.MAX_DENTS:
+		return
+	var limit := float(e.data.get("break", 5.0)) * Config.DENT_FRAGILE if e.is_fragile() else Config.DENT_SPEED
+	if speed < limit or _time - float(e.info.get("dented_at", -10.0)) < Config.DENT_COOLDOWN:
+		return
+	var before := e.value()
+	e.info["dented_at"] = _time
+	e.info["dents"] = e.dents() + 1
+	var lost := before - e.value()
+	if _loaded.has(e.entity_id) and _stats.has(int(_loaded[e.entity_id])):
+		var peer: int = _loaded[e.entity_id]
+		_stats[peer]["loot"] = int(_stats[peer]["loot"]) - lost
+	_send_all(&"rpc_dented", [e.entity_id, e.dents(), e.global_position, lost])
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_dented(id: int, dents: int, pos: Vector3, lost: int) -> void:
+	var e: Entity = entities.get(id)
+	if e and not is_server:
+		e.info["dents"] = dents
+	Fx.floating_text(self, pos + Vector3(0, 0.5, 0), "-$%d" % lost)
+	if e:
+		message.emit("Se golpeó: %s (vale $%d menos)." % [String(e.data.get("name", "algo")).to_lower(), lost], false)
 
 func _srv_break(e: Entity) -> void:
 	var pos := e.global_position
@@ -815,7 +841,7 @@ func _on_owner_caught(peer: int) -> void:
 		rpc_ejected.rpc_id(peer, pos)
 	_srv_sound("thud", pos, 6.0, 0.7)
 	_broadcast_message("¡Don Ramón agarró a %s y lo tiró a la calle!" % _name(peer), true)
-	if not police_coming():
+	if not police_coming() and not game.get("police_came", false):
 		game["police"] = Config.POLICE_DELAY
 		_game_dirty = true
 		_broadcast_message("Don Ramón llamó a la policía: llega en %d segundos. ¡Carguen lo que puedan y váyanse!" % int(Config.POLICE_DELAY), true)
@@ -850,6 +876,8 @@ func _srv_new_night(night: int, bank: int) -> void:
 	rpc_seats({})
 	cargo_hits = 0
 	jolts.clear()
+	_sale_timer = 0.0
+	_arrested.clear()
 	homeowner.reset()
 	# Cada noche Don Ramón tiene el sueño un poco más liviano.
 	homeowner.sleep_mult = 1.0 + 0.12 * (night - 1)
@@ -866,6 +894,8 @@ func _srv_new_night(night: int, bank: int) -> void:
 		"quota": Config.quota_for_night(night),
 		"truck": 0,
 		"police": -1.0,
+		"police_came": false,
+		"away": false,
 		"over": false,
 		"bank": bank,
 		"style": _rng.randi_range(1, 999999),
@@ -922,43 +952,59 @@ func rpc_loaded(pos: Vector3, value: int, what: String) -> void:
 	Fx.floating_text(self, pos + Vector3(0, 0.6, 0), "+$%d" % value)
 	message.emit("Al camión: %s ($%d)." % [what.to_lower(), value], false)
 
+## Lo que se cobra al terminar la noche. Solo se cobra si vendieron en el galpón y llegaron a
+## la cuota; si amanece o llega la policía con el camión en el barrio, se pierde todo.
+static func payout(reason: String, value: int, quota: int, fines: int) -> Dictionary:
+	if reason == "sold" and value < quota:
+		reason = "cancel"
+	var paid := reason == "sold"
+	return {
+		"reason": reason,
+		"total": maxi(value - fines, 0) if paid else 0,
+		"fines": fines if paid else 0,
+		"stars": Config.stars(value, quota) if paid else 0,
+	}
+
 func _srv_end_night(reason: String) -> void:
 	if night_over():
 		return
+	_srv_check_truck()
 	var value := int(game["truck"])
 	var quota := int(game["quota"])
 	var rows := []
 	var detained := 0
-	# Si se van sin llegar a la cuota, el encargo se cancela y se pierde todo lo cargado.
-	var canceled := reason == "leave" and value < quota
-	if canceled:
-		reason = "cancel"
 	for peer: int in players:
 		var st: Dictionary = _stats.get(peer, _empty_stats())
-		var left_behind := not is_seated(peer)
-		if reason != "leave" and reason != "cancel":
-			left_behind = left_behind and not HouseBuilder.at_truck(player_position(peer))
+		var pos := player_position(peer)
+		var left_behind := _arrested.has(peer) or not (is_seated(peer) or CityBuilder.at_warehouse(pos))
 		if left_behind:
 			detained += 1
 		rows.append({"name": _name(peer), "noise": roundi(float(st["noise"])), "broken": st["broken"],
 				"loot": st["loot"], "caught": st["caught"], "wakes": st["wakes"], "left": left_behind})
-	var fines := 0 if canceled else detained * Config.ARREST_FINE
-	var total := 0 if canceled else maxi(value - fines, 0)
+	var pay := payout(reason, value, quota, detained * Config.ARREST_FINE)
+	# Lo que se llevó el reducidor (o lo que había en el camión), de lo más caro a lo más barato.
+	var sold := []
+	for id: int in _loaded:
+		var e: Entity = entities.get(id)
+		if e:
+			sold.append([String(e.data.get("name", "algo")), e.value(), e.dents()])
+	sold.sort_custom(func(a: Array, c: Array) -> bool: return int(a[1]) > int(c[1]))
 	game["over"] = true
-	game["bank"] = int(game.get("bank", 0)) + total
+	game["bank"] = int(game.get("bank", 0)) + int(pay["total"])
 	truck.locked = true
 	results = {
-		"reason": reason,
+		"reason": pay["reason"],
 		"night": game["night"],
 		"value": value,
 		"quota": quota,
-		"stars": 0 if canceled else Config.stars(value, quota),
-		"fines": fines,
-		"total": total,
+		"stars": pay["stars"],
+		"fines": pay["fines"],
+		"total": pay["total"],
 		"bank": game["bank"],
 		"wakes": homeowner.wakes,
 		"players": rows,
 		"titles": _titles(rows),
+		"sold": sold,
 	}
 	for e: Entity in entities.values():
 		e.holders.clear()
@@ -1049,14 +1095,12 @@ func _srv_tick(delta: float) -> void:
 		# Reloj de la noche y policía.
 		game["time_left"] = float(game["time_left"]) - delta
 		if float(game["time_left"]) <= 0.0:
-			_broadcast_message("Amaneció. Don Ramón se levanta temprano...", true)
+			_broadcast_message("Amaneció y el camión no llegó al galpón: hay que devolver todo...", true)
 			_srv_end_night("dawn")
 		elif police_coming():
 			game["police"] = float(game["police"]) - delta
 			if float(game["police"]) <= 0.0:
-				game["police"] = 0.0
-				_broadcast_message("¡LLEGÓ LA POLICÍA!", true)
-				_srv_end_night("police")
+				_srv_police_arrives()
 	_game_timer -= delta
 	if _game_dirty or _game_timer <= 0.0:
 		_game_timer = 1.0
@@ -1084,6 +1128,19 @@ func _srv_on_truck_jolt(strength: float) -> void:
 			_srv_on_impact(e, strength)
 
 func _srv_truck_tick(delta: float) -> void:
+	# Venta: el camión parado adentro del galpón un momento.
+	if CityBuilder.in_warehouse_zone(truck.global_position) and truck.speed < Config.SALE_STOP_SPEED:
+		_sale_timer += delta
+		if _sale_timer >= Config.SALE_STOP_TIME:
+			_broadcast_message("El Flaco revisa la mercadería y les paga...", true)
+			_srv_end_night("sold")
+			return
+	else:
+		_sale_timer = 0.0
+	if not game.get("away", false) and truck.global_position.length() > Config.BARRIO_RADIUS:
+		game["away"] = true
+		_game_dirty = true
+		_broadcast_message("¡Salieron del barrio! Ahora, al Galpón 7: sigan la flecha.", true)
 	if truck.driver == 0:
 		return
 	_engine_timer -= delta
@@ -1096,9 +1153,26 @@ func _srv_truck_tick(delta: float) -> void:
 			var e: Entity = entities.get(id)
 			if e:
 				e.sleeping = false
-	if truck.global_position.distance_to(HouseBuilder.TRUCK_POS) > Config.ESCAPE_DISTANCE and not night_over():
-		_broadcast_message("¡Salieron del barrio!", true)
-		_srv_end_night("leave")
+
+## Llega la policía a lo de Don Ramón. Si el camión sigue en el barrio, los agarran con todo;
+## si ya se fue, detienen a los que se quedaron cerca de la casa y la noche sigue.
+func _srv_police_arrives() -> void:
+	game["police"] = -1.0
+	game["police_came"] = true
+	_game_dirty = true
+	if truck.global_position.length() < Config.BARRIO_RADIUS:
+		_broadcast_message("¡LLEGÓ LA POLICÍA y el camión seguía en el barrio!", true)
+		_srv_end_night("police")
+		return
+	var names := []
+	for peer: int in players:
+		if not is_seated(peer) and player_position(peer).length() < Config.BARRIO_RADIUS:
+			_arrested[peer] = true
+			names.append(_name(peer))
+	if names.is_empty():
+		_broadcast_message("La policía llegó a lo de Don Ramón, pero ustedes ya no estaban.", true)
+	else:
+		_broadcast_message("La policía llegó a lo de Don Ramón y detuvo a %s. (Multa de $%d cada uno.)" % [", ".join(names), Config.ARREST_FINE], true)
 
 func _srv_sync() -> void:
 	if _ready_peers.size() <= 1:

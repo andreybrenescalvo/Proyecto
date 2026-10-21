@@ -60,8 +60,16 @@ func is_heavy() -> bool:
 func is_fragile() -> bool:
 	return bool(data.get("fragile", false))
 
+## Precio: el de la ficha, menos lo que perdió por cada golpe fuerte.
 func value() -> int:
-	return int(data.get("value", 0))
+	var v := int(data.get("value", 0))
+	if v <= 1:
+		return v
+	return roundi(v * (1.0 - Config.DENT_LOSS * dents()))
+
+## Cuántos golpes fuertes tiene (viaja en `info`, así lo saben todos).
+func dents() -> int:
+	return int(info.get("dents", 0))
 
 ## Cuánto frena al que lo lleva (1 = nada).
 func slow_factor() -> float:
@@ -72,6 +80,8 @@ func slow_factor() -> float:
 ## Nombre para mostrar en pantalla.
 func display_name() -> String:
 	var n: String = data.get("name", item_id)
+	if dents() > 0:
+		n += " (con golpes)"
 	return "%s ($%d)" % [n, value()] if value() > 1 else n.to_lower()
 
 func _build() -> void:

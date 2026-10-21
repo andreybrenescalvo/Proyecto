@@ -6,7 +6,8 @@ extends Node
 ##
 ## El anfitrión recorre las mecánicas principales (el dueño oye la voz y las puertas, cargar el
 ## camión, romper algo frágil, cargar el sillón entre dos, despertarlo, que persiga y eche a
-## alguien, manejar el camión y escapar, otra noche) y compara lo que ve cada cliente. Imprime "AUTOTEST OK" o
+## alguien, manejar el camión hasta el Galpón 7 y vender, otra noche, la policía) y compara lo que
+## ve cada cliente. Imprime "AUTOTEST OK" o
 ## "AUTOTEST FALLÓ" y cierra el juego.
 
 var world: World
@@ -179,8 +180,8 @@ func _run_host() -> void:
 	if int(world._stats[1]["caught"]) > 0:
 		_check(not HouseBuilder.in_house(me.global_position), "el anfitrión terminó afuera de la casa (%s)" % me.global_position.snapped(Vector3(0.1, 0.1, 0.1)))
 
-	# 8. El camión: subirse a manejar, arrancar, frenar (lo de la caja se golpea), un acompañante
-	# y escapar del barrio sin llegar a la cuota (la misión se cancela).
+	# 8. El camión: subirse a manejar, arrancar, frenar, un acompañante, los lomos de burro (lo de
+	# la caja se golpea) y manejar por la ciudad hasta el Galpón 7, donde el reducidor compra todo.
 	# Al que echaron no se puede subir enseguida: esperar a que se le pase.
 	var t_ej := Time.get_ticks_msec()
 	while world.players.values().any(func(p: Player) -> bool: return p.ejected) and Time.get_ticks_msec() - t_ej < 8000:
@@ -227,24 +228,55 @@ func _run_host() -> void:
 	await _wait(0.3)
 	_check(world.srv_seat(1, "truck_drive"), "se volvió a subir a manejar")
 	# Despacio por el primer lomo de burro: no se rompe nada.
-	var bump: float = HouseBuilder.SPEED_BUMPS_X[0]
+	var bump: float = CityBuilder.SPEED_BUMPS_X[0]
 	var t_slow := Time.get_ticks_msec()
 	while truck.global_position.x > bump - 2.5 and Time.get_ticks_msec() - t_slow < 20000:
 		await _drive(1.0 if truck.speed < 2.0 else 0.0, 0.0, false, 0.05)
 	_say("sacudones despacio: %s" % [world.jolts])
 	_check(truck.global_position.x < bump - 2.5, "pasó el lomo de burro despacio")
 	_check(world.entities.has(tv_id), "despacio, el televisor pasa entero")
-	# A toda velocidad por el segundo: lo de la caja salta y lo frágil se rompe. Y se escapan.
-	var t_drive := Time.get_ticks_msec()
-	while not world.night_over() and Time.get_ticks_msec() - t_drive < 15000:
+	# A toda velocidad por el segundo: lo de la caja salta, lo frágil se rompe y lo demás se golpea.
+	var bump2: float = CityBuilder.SPEED_BUMPS_X[1]
+	var t_fast := Time.get_ticks_msec()
+	while truck.global_position.x > bump2 - 4.0 and Time.get_ticks_msec() - t_fast < 15000:
 		await _drive(1.0, 0.0, false, 0.05)
 	_say("sacudones rápido: %s" % [world.jolts])
 	_check(world.cargo_hits > 0, "el lomo de burro sacudió lo de la caja (%d golpes)" % world.cargo_hits)
 	_check(not world.entities.has(tv_id), "a toda velocidad, el lomo de burro rompió el televisor")
-	_check(world.night_over() and not world.results.is_empty(), "terminó la noche al salir del barrio")
-	_check(world.results.get("reason", "") == "cancel", "sin llegar a la cuota la misión se cancela (%s)" % world.results.get("reason", ""))
-	_check(int(world.results.get("total", -1)) == 0 and int(world.results.get("stars", -1)) == 0, "y se pierde todo lo cargado")
-	_check(int(world.results.get("value", 0)) >= jewelry.value(), "el resultado muestra lo que llevaban ($%d)" % world.results.get("value", 0))
+	_check(jewelry.dents() >= 1 and jewelry.value() < int(jewelry.data["value"]), "y el joyero quedó golpeado: vale $%d" % jewelry.value())
+	await _wait(0.4)
+	_check(int(world.game["truck"]) == jewelry.value(), "el camión cuenta el precio con golpes ($%d)" % world.game["truck"])
+	_check(not world.night_over(), "salir del barrio ya no termina la noche")
+	# Las cuentas de la venta (sin manejar): sin cuota no se cobra, y si amanece o llega la policía, tampoco.
+	_check(World.payout("sold", 100, 1800, 0)["reason"] == "cancel" and World.payout("sold", 100, 1800, 0)["total"] == 0, "vender sin llegar a la cuota cancela el encargo")
+	_check(World.payout("sold", 2000, 1800, 300)["total"] == 1700, "vendiendo con la cuota se cobra todo menos las multas")
+	_check(World.payout("dawn", 5000, 1800, 0)["total"] == 0 and World.payout("police", 5000, 1800, 0)["total"] == 0, "si amanece o llega la policía se pierde todo")
+	# Para probar la venta, esta noche la cuota es más baja (solo llevan el joyero).
+	world.game["quota"] = 100
+	var pilot := Autopilot.new(Autopilot.ROUTE_TO_WAREHOUSE)
+	var away_seen := false
+	var t_drive := Time.get_ticks_msec()
+	var last_index := -1
+	while not world.night_over() and Time.get_ticks_msec() - t_drive < 120000:
+		var cmd := pilot.step(truck)
+		world._srv_drive_input(truck.driver, cmd[0], cmd[1], cmd[2])
+		await get_tree().physics_frame
+		if pilot.index != last_index:
+			last_index = pilot.index
+			_say("  rumbo al punto %d (camión en %s, %.1f m/s, joyero con %d golpes)" % [pilot.index, truck.global_position.snapped(Vector3(0.1, 0.1, 0.1)), truck.speed, jewelry.dents()])
+		away_seen = away_seen or bool(world.game.get("away", false))
+		if truck.global_transform.basis.y.y < 0.7:
+			break
+	_say("viaje al galpón: %.0f s, camión en %s, punto %d de %d" % [(Time.get_ticks_msec() - t_drive) / 1000.0,
+			truck.global_position.snapped(Vector3(0.1, 0.1, 0.1)), pilot.index, pilot.route.size()])
+	_check(away_seen, "al alejarse avisa que salieron del barrio")
+	_check(truck.global_transform.basis.y.y > 0.9, "el camión llegó sin volcar")
+	_check(CityBuilder.in_warehouse_zone(truck.global_position), "el camión está adentro del Galpón 7")
+	_check(world.night_over() and not world.results.is_empty(), "terminó la noche en el galpón")
+	_check(world.results.get("reason", "") == "sold", "el reducidor compró todo (%s)" % world.results.get("reason", ""))
+	var sold: Array = world.results.get("sold", [])
+	_check(sold.size() == 1 and sold[0][0] == "Joyero" and int(sold[0][2]) >= 1, "la lista de lo vendido tiene el joyero golpeado (%s)" % [sold])
+	_check(int(world.results.get("total", -1)) == jewelry.value() and int(world.game.get("bank", 0)) == jewelry.value(), "cobraron el joyero con el descuento ($%d)" % world.results.get("total", -1))
 	_check(world.results.get("players", []).size() == expect_clients + 1, "hay una fila por jugador")
 	var left_rows: Array = (world.results.get("players", []) as Array).filter(func(r: Dictionary) -> bool: return r["left"])
 	_check(left_rows.is_empty(), "nadie quedó atrás (iban todos arriba)")
@@ -268,6 +300,12 @@ func _run_host() -> void:
 	_check(me.seat == -1, "el anfitrión ya no está sentado")
 	if expect_clients > 0:
 		await _compare_clients(false, 2)
+	# 11. La policía llega con el camión todavía en el barrio: se pierde todo.
+	var bank := int(world.game.get("bank", 0))
+	world.game["police"] = 0.3
+	await _wait(1.0)
+	_check(world.night_over() and world.results.get("reason", "") == "police", "la policía los agarró con el camión en el barrio (%s)" % world.results.get("reason", ""))
+	_check(int(world.results.get("total", -1)) == 0 and int(world.game.get("bank", -1)) == bank, "y esa noche no se cobra nada")
 	_finish()
 
 ## ¿Hay una hoja de puerta en el medio del vano? (Una cápsula del tamaño de un jugador.)
@@ -332,6 +370,6 @@ func _run_client() -> void:
 	# Pararse al lado del sillón (el anfitrión lo va a cargar con este jugador).
 	world.local_player.teleport(Vector3(-1.6, 0.1, 3.0))
 	# Quedarse esperando: el anfitrión pide los informes y después cierra (eso termina la sesión).
-	await _wait(150.0)
+	await _wait(400.0)
 	print("AUTOTEST FALLÓ: el cliente esperó demasiado")
 	get_tree().quit(1)
